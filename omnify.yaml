@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://cdn.jsdelivr.net/npm/@omnifyjp/omnify@latest/omnify-config-schema.json
+schemasDir: ./database/schemas/Workflow
+lockFilePath: .omnify/lock.json
+
+connections:
+  default:
+    driver: mysql
+    migrations:
+      - type: laravel
+        path: database/migrations
+        schemasPath: database/omnify/schemas.json
+
+default: default
+
+locale:
+  locales: [ja, en, vi]
+  defaultLocale: ja
+  fallbackLocale: en
+
+codegen:
+  laravel:
+    enable: true
+    model:
+      path: app/Models
+      namespace: Omnify\Workflow\Models
+    resource:
+      path: app/Http/Resources
+      namespace: Omnify\Workflow\Http\Resources
+    factory:
+      path: database/factories
+      namespace: Omnify\Workflow\Database\Factories
+    provider:
+      path: app/Providers
+      namespace: Omnify\Workflow\Providers
