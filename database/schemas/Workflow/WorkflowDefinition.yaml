@@ -66,7 +66,7 @@ properties:
       en: Slug
       vi: Mã định danh
     description:
-      en: Unique identifier used in code. Convention: {domain}-{action}-approval
+      en: "Unique identifier used in code. Convention: {domain}-{action}-approval"
       vi: |
         Định danh duy nhất dùng trong code.
         Convention đặt tên: {domain}-{action}

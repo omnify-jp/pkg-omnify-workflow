@@ -1,0 +1,820 @@
+{
+  "generatedAt": "2026-02-25T10:02:50Z",
+  "database": {
+    "driver": "mysql"
+  },
+  "connections": {
+    "default": "mysql"
+  },
+  "locale": {
+    "locales": [
+      "ja",
+      "en",
+      "vi"
+    ],
+    "defaultLocale": "ja",
+    "fallbackLocale": "en"
+  },
+  "customTypes": {
+    "compound": {},
+    "simple": {},
+    "enums": {}
+  },
+  "schemas": {
+    "WorkflowDefinition": {
+      "connection": "default",
+      "displayName": {
+        "en": "Workflow Definition",
+        "vi": "Định nghĩa quy trình phê duyệt"
+      },
+      "kind": "object",
+      "name": "WorkflowDefinition",
+      "options": {
+        "id": "Uuid",
+        "timestamps": true,
+        "softDelete": false,
+        "indexes": [
+          {
+            "columns": [
+              "console_organization_id",
+              "slug"
+            ],
+            "unique": true
+          },
+          {
+            "columns": [
+              "console_organization_id"
+            ]
+          },
+          {
+            "columns": [
+              "is_active"
+            ]
+          }
+        ]
+      },
+      "package": null,
+      "properties": {
+        "config": {
+          "type": "Json",
+          "displayName": {
+            "en": "Config Override",
+            "vi": "Cấu hình mở rộng"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "JSON config bổ sung, dự phòng cho extensions của host application.\nWorkflowEngine không xử lý field này — chỉ expose qua events.\n\nVí dụ sử dụng:\n  {\n    \"notify_on_each_step\": true,\n    \"require_attachment\": false,\n    \"max_amount\": 10000000,\n    \"webhook_url\": \"https://hooks.slack.com/...\",\n    \"allowed_submitter_roles\": [\"staff\", \"manager\"]\n  }\n"
+          }
+        },
+        "console_organization_id": {
+          "type": "String",
+          "displayName": {
+            "en": "Organization ID",
+            "vi": "ID tổ chức"
+          },
+          "nullable": true,
+          "description": {
+            "en": "NULL = global definition (applies to all organizations)\nUUID = org-specific override (applies only to this organization)\n",
+            "vi": "NULL  = định nghĩa toàn cầu, áp dụng cho tất cả tổ chức\nUUID  = override chỉ cho tổ chức cụ thể này\nKhi WorkflowEngine tìm definition:\n  → Tìm org-specific trước (console_organization_id = orgId)\n  → Nếu không có → tìm global (console_organization_id = NULL)\n  → Nếu không có → fallback config file\n"
+          },
+          "length": 36
+        },
+        "description": {
+          "type": "Text",
+          "displayName": {
+            "en": "Description",
+            "vi": "Mô tả"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Mô tả chi tiết về quy trình, điều kiện áp dụng, v.v."
+          }
+        },
+        "instances": {
+          "type": "Association",
+          "displayName": {
+            "en": "Instances",
+            "vi": "Các lần chạy"
+          },
+          "relation": "OneToMany",
+          "target": "WorkflowInstance"
+        },
+        "is_active": {
+          "type": "Boolean",
+          "displayName": {
+            "en": "Active",
+            "vi": "Đang hoạt động"
+          },
+          "default": true,
+          "description": {
+            "vi": "true  = WorkflowEngine có thể dùng definition này để start workflow\nfalse = Definition bị tắt, cố start sẽ báo RuntimeException\nDùng để \"tạm dừng\" 1 quy trình mà không cần xóa\n"
+          }
+        },
+        "name": {
+          "type": "String",
+          "displayName": {
+            "en": "Name",
+            "vi": "Tên quy trình"
+          },
+          "description": {
+            "vi": "Tên hiển thị cho người dùng. VD: 'Phê duyệt đơn nghỉ phép'"
+          },
+          "length": 200
+        },
+        "slug": {
+          "type": "String",
+          "displayName": {
+            "en": "Slug",
+            "vi": "Mã định danh"
+          },
+          "description": {
+            "en": "Unique identifier used in code. Convention: {domain}-{action}-approval",
+            "vi": "Định danh duy nhất dùng trong code.\nConvention đặt tên: {domain}-{action}\nVí dụ: leave-approval, purchase-order-approval, document-review, travel-request\n"
+          },
+          "length": 100
+        },
+        "steps": {
+          "type": "Association",
+          "displayName": {
+            "en": "Steps",
+            "vi": "Các bước quy trình"
+          },
+          "relation": "OneToMany",
+          "target": "WorkflowDefinitionStep"
+        }
+      },
+      "propertyOrder": [
+        "slug",
+        "console_organization_id",
+        "name",
+        "description",
+        "is_active",
+        "config",
+        "steps",
+        "instances"
+      ],
+      "tableName": "workflow_definitions"
+    },
+    "WorkflowDefinitionStep": {
+      "connection": "default",
+      "displayName": {
+        "en": "Workflow Definition Step",
+        "vi": "Bước quy trình phê duyệt"
+      },
+      "kind": "object",
+      "name": "WorkflowDefinitionStep",
+      "options": {
+        "id": "Uuid",
+        "timestamps": true,
+        "softDelete": false,
+        "indexes": [
+          {
+            "columns": [
+              "workflow_definition_id",
+              "step_order"
+            ],
+            "unique": true
+          }
+        ]
+      },
+      "package": null,
+      "properties": {
+        "approver_role": {
+          "type": "String",
+          "displayName": {
+            "en": "Approver Role",
+            "vi": "Vai trò phê duyệt"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Slug của role được phép phê duyệt bước này.\nTham chiếu đến Role.slug trong pkg-omnify-laravel-sso.\nKHÔNG có FK cứng để tránh coupling giữa packages.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nNULL = bất kỳ authenticated user nào cũng có thể approve\n(Rất hiếm dùng — chỉ cho workflows không cần kiểm soát chặt)\n"
+          },
+          "length": 100
+        },
+        "deadline_hours": {
+          "type": "Int",
+          "displayName": {
+            "en": "Deadline Hours",
+            "vi": "Hạn phê duyệt (giờ)"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Số giờ để hoàn thành bước tính từ khi bước được kích hoạt.\n\nNULL = không có deadline, chờ vô thời hạn\n\nVí dụ:\n  8   = phải duyệt trong 8 giờ (1 ngày làm việc)\n  24  = phải duyệt trong 24 giờ\n  48  = phải duyệt trong 2 ngày\n  72  = phải duyệt trong 3 ngày\n\nCơ chế:\n  1. Khi tạo WorkflowStepApproval → tính deadline_at = now() + deadline_hours\n  2. php artisan workflow:escalate-expired chạy định kỳ (khuyến khích hourly)\n  3. Khi deadline_at \u003c now() → escalate (xem escalate_to_role)\n"
+          }
+        },
+        "definition": {
+          "type": "Association",
+          "displayName": {
+            "en": "Workflow Definition",
+            "vi": "Quy trình"
+          },
+          "relation": "ManyToOne",
+          "target": "WorkflowDefinition"
+        },
+        "description": {
+          "type": "Text",
+          "displayName": {
+            "en": "Description",
+            "vi": "Mô tả bước"
+          },
+          "nullable": true
+        },
+        "escalate_to_role": {
+          "type": "String",
+          "displayName": {
+            "en": "Escalate To Role",
+            "vi": "Chuyển đến vai trò khi quá hạn"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Role nhận approval khi approval hiện tại quá deadline.\n\nNULL = auto-approve khi quá hạn\n  → Workflow không bị block bởi approver không phản hồi\n  → Dùng cho các bước ít quan trọng hoặc thông báo đơn giản\n\n'admin' = chuyển lên admin khi manager không duyệt trong 24h\n  → Approval mới được tạo với role='admin', deadline = 24h * 2 = 48h\n\nQuy trình escalation:\n  1. approval_current.status = Expired\n  2. Tạo approval_new:\n       approver_role = escalate_to_role\n       deadline_at = now() + (deadline_hours * 2)\n  3. Nếu approval_new cũng hết hạn → escalation dừng (không vô hạn)\n     (chỉ escalate 1 lần, approval_new không có escalate config)\n"
+          },
+          "length": 100
+        },
+        "name": {
+          "type": "String",
+          "displayName": {
+            "en": "Step Name",
+            "vi": "Tên bước"
+          },
+          "description": {
+            "vi": "Tên hiển thị trong UI và history. VD: 'Quản lý trực tiếp', 'Ban giám đốc'"
+          },
+          "length": 200
+        },
+        "step_order": {
+          "type": "Int",
+          "displayName": {
+            "en": "Step Order",
+            "vi": "Thứ tự bước"
+          },
+          "default": 1,
+          "description": {
+            "vi": "Thứ tự thực hiện bước, bắt đầu từ 1.\nWorkflowEngine advance theo thứ tự này.\nVí dụ: 1 → 2 → 3 → (approved)\nLưu ý: Gaps được chấp nhận nhưng không khuyến khích.\n"
+          }
+        },
+        "type": {
+          "type": "String",
+          "displayName": {
+            "en": "Approval Type",
+            "vi": "Kiểu phê duyệt"
+          },
+          "default": "sequential",
+          "description": {
+            "vi": "sequential (default):\n  → Tạo 1 WorkflowStepApproval với approver_id = NULL\n  → Bất kỳ user có approver_role trong org đều có thể approve\n  → Step complete khi có 1 approval → Approved\n\nany_of:\n  → Giống sequential, alias tường minh hơn\n  → \"Bất kỳ ai trong role group\"\n\nparallel:\n  → Tạo N WorkflowStepApprovals, 1 per user có role trong org\n  → N được resolve tại start() time bởi WorkflowEngine\n  → Step complete khi TẤT CẢ N rows đều Approved\n  → Nếu bất kỳ 1 row Rejected → toàn bộ instance Rejected ngay\n  → Use case: \"tất cả thành viên HĐQT phải ký\"\n\nValues: sequential | any_of | parallel\n"
+          },
+          "length": 20
+        },
+        "workflow_definition_id": {
+          "type": "Uuid",
+          "displayName": {
+            "en": "Workflow Definition",
+            "vi": "Quy trình phê duyệt"
+          },
+          "description": {
+            "vi": "FK → workflow_definitions. Cascade delete khi xóa definition."
+          }
+        }
+      },
+      "propertyOrder": [
+        "workflow_definition_id",
+        "step_order",
+        "name",
+        "description",
+        "approver_role",
+        "type",
+        "deadline_hours",
+        "escalate_to_role",
+        "definition"
+      ],
+      "tableName": "workflow_definition_steps"
+    },
+    "WorkflowHistory": {
+      "connection": "default",
+      "displayName": {
+        "en": "Workflow History",
+        "vi": "Lịch sử quy trình"
+      },
+      "kind": "object",
+      "name": "WorkflowHistory",
+      "options": {
+        "id": "Uuid",
+        "timestamps": false,
+        "softDelete": false,
+        "indexes": [
+          {
+            "columns": [
+              "workflow_instance_id",
+              "created_at"
+            ],
+            "name": "wf_history_instance_time_idx"
+          },
+          {
+            "columns": [
+              "actor_id"
+            ]
+          }
+        ]
+      },
+      "package": null,
+      "properties": {
+        "action": {
+          "type": "String",
+          "displayName": {
+            "en": "Action",
+            "vi": "Hành động"
+          },
+          "description": {
+            "vi": "Tên loại sự kiện đã xảy ra.\n\nCác giá trị chuẩn (xem WorkflowHistory constants):\n┌──────────────────┬─────────────────────────────────────────────────┐\n│ Constant         │ Khi nào ghi                                     │\n├──────────────────┼─────────────────────────────────────────────────┤\n│ submitted        │ WorkflowEngine::start() thành công              │\n│ step_started     │ Sau khi tạo approvals cho bước mới              │\n│ step_approved    │ 1 approver approve (parallel: 1 row per user)   │\n│ step_completed   │ Toàn bộ step hoàn thành, advance sang bước tiếp│\n│ approved         │ Workflow hoàn tất, tất cả steps passed          │\n│ rejected         │ WorkflowEngine::reject() thành công             │\n│ cancelled        │ WorkflowEngine::cancel() thành công             │\n│ escalated        │ Approval row mới được tạo cho escalate_to_role  │\n│ expired          │ Approval row cũ được mark expired               │\n└──────────────────┴─────────────────────────────────────────────────┘\n\nCustom actions:\n  Host application có thể thêm custom actions nếu cần track thêm events.\n  VD: 'delegated', 'comment_added', 'recalled', v.v.\n\nSử dụng constant để tránh typo:\n```php\nWorkflowHistory::SUBMITTED   // 'submitted'\nWorkflowHistory::APPROVED    // 'approved'\nWorkflowHistory::ESCALATED   // 'escalated'\n```\n"
+          },
+          "length": 50
+        },
+        "actor_id": {
+          "type": "Uuid",
+          "displayName": {
+            "en": "Actor",
+            "vi": "Người thực hiện"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "UUID của user thực hiện hành động.\n\nNULL = System action (không có user cụ thể):\n  - Escalation do cron job (workflow:escalate-expired)\n  - Auto-approve khi escalate_to_role = NULL\n  - step_started (được tạo tự động sau khi step trước complete)\n\nUUID = User action:\n  - submitted (submitter gọi startWorkflow)\n  - step_approved / approved (approver gọi approve)\n  - rejected (approver gọi reject)\n  - cancelled (submitter hoặc admin gọi cancel)\n\nKhông FK cứng vì user model ở package khác (cross-package boundary).\nApplication layer cần tự resolve user từ actor_id khi hiển thị UI.\n"
+          }
+        },
+        "comment": {
+          "type": "Text",
+          "displayName": {
+            "en": "Comment",
+            "vi": "Nhận xét / Lý do"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Nhận xét hoặc lý do được ghi lại cùng với action.\n\nNguồn:\n  - User action: approver điền khi approve/reject, submitter điền khi cancel\n  - System action: WorkflowEngine tạo message tự động\n    VD: \"Escalated from manager to admin due to SLA timeout.\"\n    VD: \"Auto-approved: escalate_to_role = null, step advanced.\"\n\nĐược lưu ở đây để history luôn self-contained:\n  Ngay cả khi WorkflowStepApproval bị xóa, history vẫn có đủ thông tin.\n"
+          }
+        },
+        "created_at": {
+          "type": "Timestamp",
+          "displayName": {
+            "en": "Created At",
+            "vi": "Thời điểm xảy ra"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Thời điểm sự kiện xảy ra (thực tế — không phải thời điểm lưu vào DB).\n\nĐây là thứ tự thực tế của sự kiện trong workflow.\nKhi hiển thị timeline:\n  ORDER BY workflow_history.created_at ASC\n\nSet manually khi tạo row (không dùng $timestamps tự động):\n```php\nWorkflowHistory::create([\n    ...\n    'created_at' =\u003e now(),\n]);\n```\n\nKhông có updated_at — rows là IMMUTABLE (append-only).\nNếu cần \"sửa\" thông tin, tạo 1 row mới với action phù hợp.\n"
+          }
+        },
+        "from_status": {
+          "type": "String",
+          "displayName": {
+            "en": "From Status",
+            "vi": "Trạng thái trước"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Trạng thái của WORKFLOW INSTANCE trước khi action xảy ra.\n\nNULL cho các actions không thay đổi instance status:\n  - submitted: từ \"không tồn tại\" sang pending (from = NULL)\n  - step_started: status không đổi (vẫn pending)\n  - step_approved: status không đổi (vẫn pending)\n\nGiá trị khi có: pending | approved | rejected | cancelled\nXem WorkflowStatus enum cho danh sách đầy đủ.\n\nLƯU Ý: Đây là status của INSTANCE, không phải status của approval row.\n"
+          },
+          "length": 20
+        },
+        "instance": {
+          "type": "Association",
+          "displayName": {
+            "en": "Workflow Instance",
+            "vi": "Phiên bản quy trình"
+          },
+          "description": {
+            "vi": "FK → workflow_instances (cascade delete)."
+          },
+          "relation": "ManyToOne",
+          "target": "WorkflowInstance"
+        },
+        "metadata": {
+          "type": "Json",
+          "displayName": {
+            "en": "Metadata",
+            "vi": "Dữ liệu bổ sung"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "JSON object chứa context bổ sung giúp debug và audit.\n\nWorkflowEngine điền metadata tùy theo loại action:\n\naction = step_approved:\n  {\n    \"approval_id\":    \"uuid\",         // WorkflowStepApproval.id\n    \"approver_role\":  \"manager\",      // Role của approver\n    \"parallel_total\": 3,              // Tổng số approvals cần (parallel)\n    \"parallel_done\":  2               // Số đã approve (parallel)\n  }\n\naction = escalated:\n  {\n    \"old_approval_id\": \"uuid\",        // Approval row cũ (expired)\n    \"new_approval_id\": \"uuid\",        // Approval row mới (escalated)\n    \"from_role\":       \"manager\",     // Role cũ\n    \"to_role\":         \"admin\",       // Role mới\n    \"deadline_at\":     \"2024-01-16T17:00:00Z\" // Deadline mới\n  }\n\naction = expired:\n  {\n    \"approval_id\": \"uuid\",            // Row đã expired\n    \"deadline_at\": \"2024-01-16T09:00:00Z\", // Deadline đã qua\n    \"hours_overdue\": 2.5              // Số giờ quá hạn\n  }\n\naction = cancelled:\n  {\n    \"cancelled_by_role\": \"admin\"      // Role của người hủy\n  }\n\nNguyên tắc: metadata giúp debug mà không cần query thêm bảng khác.\nDữ liệu trong metadata là denormalized — có thể stale nếu record gốc thay đổi.\n"
+          }
+        },
+        "step_order": {
+          "type": "Int",
+          "displayName": {
+            "en": "Step Order",
+            "vi": "Bước đang xử lý"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Số thứ tự bước đang xử lý tại thời điểm action xảy ra.\n\nNULL cho các actions ở level instance (không liên quan đến bước cụ thể):\n  - submitted: chưa có step nào active\n  - approved/rejected/cancelled: toàn bộ workflow (không phải 1 step)\n\nCó giá trị cho step-level actions:\n  - step_started:    step_order = bước mới được kích hoạt\n  - step_approved:   step_order = bước mà approver vừa approve\n  - step_completed:  step_order = bước vừa hoàn thành\n  - escalated:       step_order = bước bị escalate\n\nDùng để filter history theo bước trong UI:\n  \"Hiển thị chỉ history của Step 2\"\n  → WHERE workflow_instance_id = ? AND step_order = 2\n"
+          }
+        },
+        "to_status": {
+          "type": "String",
+          "displayName": {
+            "en": "To Status",
+            "vi": "Trạng thái sau"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Trạng thái của WORKFLOW INSTANCE sau khi action xảy ra.\n\nVí dụ các chuyển trạng thái:\n  submitted:       NULL    → pending\n  step_approved:   pending → pending  (không đổi)\n  approved:        pending → approved\n  rejected:        pending → rejected\n  cancelled:       pending → cancelled\n  escalated:       pending → pending  (không đổi)\n\nGiá trị khi có: pending | approved | rejected | cancelled\n"
+          },
+          "length": 20
+        },
+        "workflow_instance_id": {
+          "type": "Uuid",
+          "displayName": {
+            "en": "Workflow Instance",
+            "vi": "Phiên bản quy trình"
+          },
+          "description": {
+            "vi": "FK → workflow_instances.\n\nOn delete: CASCADE (khi xóa instance → xóa toàn bộ history của nó).\nHistory không có ý nghĩa độc lập nếu không có instance.\n"
+          }
+        }
+      },
+      "propertyOrder": [
+        "workflow_instance_id",
+        "actor_id",
+        "action",
+        "from_status",
+        "to_status",
+        "step_order",
+        "comment",
+        "metadata",
+        "created_at",
+        "instance"
+      ],
+      "tableName": "workflow_histories"
+    },
+    "WorkflowInstance": {
+      "connection": "default",
+      "displayName": {
+        "en": "Workflow Instance",
+        "vi": "Phiên bản quy trình đang chạy"
+      },
+      "kind": "object",
+      "name": "WorkflowInstance",
+      "options": {
+        "id": "Uuid",
+        "timestamps": true,
+        "softDelete": false,
+        "indexes": [
+          {
+            "columns": [
+              "workflowable_type",
+              "workflowable_id"
+            ],
+            "name": "wf_instances_workflowable_index"
+          },
+          {
+            "columns": [
+              "status"
+            ]
+          },
+          {
+            "columns": [
+              "submitted_by"
+            ]
+          }
+        ]
+      },
+      "package": null,
+      "properties": {
+        "completed_at": {
+          "type": "Timestamp",
+          "displayName": {
+            "en": "Completed At",
+            "vi": "Thời điểm hoàn thành"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Thời điểm workflow đạt trạng thái terminal (approved/rejected/cancelled).\n\nNULL nếu workflow còn đang pending.\nSet khi: status chuyển sang approved, rejected, hoặc cancelled.\n\nDùng để tính:\n  - Tổng thời gian xử lý: completed_at - submitted_at\n  - SLA compliance: có hoàn thành trong thời gian cam kết không?\n"
+          }
+        },
+        "current_step": {
+          "type": "Int",
+          "displayName": {
+            "en": "Current Step",
+            "vi": "Bước hiện tại"
+          },
+          "default": 1,
+          "description": {
+            "vi": "Số thứ tự bước đang được xử lý.\n\nBắt đầu từ 1 (step_order đầu tiên của definition).\nSau khi 1 step hoàn thành → current_step tăng lên step tiếp theo.\nKhi current_step vượt qua số step cuối → workflow completed (status = approved).\n\nVí dụ với workflow 3 bước:\n  Vừa start:       current_step = 1 (kế toán kiểm tra)\n  Kế toán approve: current_step = 2 (quản lý duyệt)\n  Quản lý approve: current_step = 3 (HĐQT phê duyệt)\n  HĐQT approve:    current_step = 4 → vượt max_step → approved!\n\nDùng để query approval rows:\n  SELECT * FROM workflow_step_approvals\n  WHERE workflow_instance_id = ? AND step_order = ?\n\nLưu ý: Với parallel steps, current_step không tăng cho đến khi TẤT CẢ approvals\ncủa step đó đều approved.\n"
+          }
+        },
+        "definition": {
+          "type": "Association",
+          "displayName": {
+            "en": "Workflow Definition",
+            "vi": "Template quy trình"
+          },
+          "description": {
+            "vi": "FK → workflow_definitions. Nullable (nullOnDelete)."
+          },
+          "relation": "ManyToOne",
+          "target": "WorkflowDefinition"
+        },
+        "history": {
+          "type": "Association",
+          "displayName": {
+            "en": "History",
+            "vi": "Lịch sử"
+          },
+          "description": {
+            "vi": "Audit trail theo thứ tự thời gian (cascade delete). Ordered by created_at ASC."
+          },
+          "relation": "OneToMany",
+          "target": "WorkflowHistory"
+        },
+        "metadata": {
+          "type": "Json",
+          "displayName": {
+            "en": "Metadata",
+            "vi": "Dữ liệu bổ sung"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "JSON object chứa context bổ sung từ application.\n\nWorkflowEngine KHÔNG xử lý metadata — chỉ lưu trữ và truyền qua events.\nHost application listeners có thể đọc để customize behavior.\n\nVí dụ sử dụng:\n```php\n$leaveRequest-\u003estartWorkflow(\n    definitionSlug: 'leave-approval',\n    submitter: $user,\n    metadata: [\n        'reason'     =\u003e 'Việc gia đình',\n        'leave_days' =\u003e 3,\n        'leave_type' =\u003e 'annual',\n        'department' =\u003e 'Engineering',\n        'urgency'    =\u003e 'normal',\n    ]\n);\n```\n\nMột số patterns phổ biến:\n  {\n    \"reason\": string,           // Lý do submit\n    \"leave_days\": number,       // Số ngày nghỉ\n    \"amount\": number,           // Số tiền (purchase order)\n    \"department\": string,       // Phòng ban\n    \"urgency\": \"low|normal|high\",\n    \"attachments\": [url, ...],  // Link file đính kèm\n    \"notes\": string             // Ghi chú thêm\n  }\n\nCách đọc trong event listener:\n```php\n// Trong WorkflowApprovedListener\n$metadata = $event-\u003einstance-\u003emetadata;\n$leaveRequest = $event-\u003einstance-\u003eworkflowable;\n// Gửi email với context metadata\n```\n"
+          }
+        },
+        "status": {
+          "type": "String",
+          "displayName": {
+            "en": "Status",
+            "vi": "Trạng thái"
+          },
+          "default": "pending",
+          "description": {
+            "vi": "Trạng thái tổng thể của workflow instance.\n\n┌───────────┬──────────┬─────────────────────────────────────────────┐\n│ Status    │ Terminal │ Ý nghĩa                                     │\n├───────────┼──────────┼─────────────────────────────────────────────┤\n│ pending   │ Không    │ Đang chờ phê duyệt (đang chạy bình thường)  │\n│ approved  │ Có       │ Đã được phê duyệt đầy đủ (tất cả steps)    │\n│ rejected  │ Có       │ Bị từ chối (ít nhất 1 approver reject)      │\n│ cancelled │ Có       │ Bị hủy bởi submitter hoặc admin             │\n└───────────┴──────────┴─────────────────────────────────────────────┘\n\nTerminal = không thể thay đổi sau khi đạt trạng thái đó.\nWorkflowEngine kiểm tra: nếu isTerminal() → throw exception khi cố approve/reject.\n\nXem: Omnify\\Workflow\\Enums\\WorkflowStatus\n\nValues: pending | approved | rejected | cancelled\n"
+          },
+          "length": 20
+        },
+        "stepApprovals": {
+          "type": "Association",
+          "displayName": {
+            "en": "Step Approvals",
+            "vi": "Danh sách phê duyệt"
+          },
+          "description": {
+            "vi": "Tất cả approval rows của instance này (cascade delete)."
+          },
+          "relation": "OneToMany",
+          "target": "WorkflowStepApproval"
+        },
+        "submitted_at": {
+          "type": "Timestamp",
+          "displayName": {
+            "en": "Submitted At",
+            "vi": "Thời điểm submit"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Thời điểm workflow được khởi tạo (startWorkflow() được gọi).\n\nThường = created_at, nhưng tách riêng để:\n  - Hỗ trợ \"pre-create\" workflow với submitted_at khác created_at\n  - Tính SLA từ submitted_at (không phải created_at)\n  - Rõ ràng hơn về mặt nghiệp vụ\n"
+          }
+        },
+        "submitted_by": {
+          "type": "Uuid",
+          "displayName": {
+            "en": "Submitted By",
+            "vi": "Người submit"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "UUID của user đã submit (khởi tạo) workflow này.\n\nNullable vì user model ở package khác (cross-package boundary).\nKhông FK cứng — application layer kiểm tra tính hợp lệ.\n\nDùng cho:\n  1. Gửi notification khi workflow approved/rejected\n  2. Hiển thị \"Submitted by: Nguyễn Văn A\" trong UI\n  3. Kiểm tra quyền hủy: chỉ submitter và admin được cancel\n  4. Filter \"Workflow của tôi\" trong dashboard\n\nXem: WorkflowInstance.isSubmittedBy(string $userId): bool\n"
+          }
+        },
+        "workflow_definition_id": {
+          "type": "Uuid",
+          "displayName": {
+            "en": "Workflow Definition",
+            "vi": "Quy trình phê duyệt"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "FK → workflow_definitions.\n\nNULLABLE để giữ lịch sử khi definition bị xóa.\nKhi definition bị xóa: workflow_definition_id → NULL.\nInstance vẫn đọc được (historical data), chỉ mất reference tới template.\n\nLưu ý quan trọng:\n  Khi definition bị sửa (thêm/bỏ steps sau khi instance đã start):\n  → Instance đang chạy vẫn theo cấu trúc cũ (snapshot tại thời điểm start).\n  → Không bị ảnh hưởng bởi thay đổi definition sau đó.\n  Đây là behavior đúng — đảm bảo tính nhất quán.\n\nOn delete: SET NULL (không cascade để bảo toàn lịch sử)\n"
+          }
+        },
+        "workflowable_id": {
+          "type": "String",
+          "displayName": {
+            "en": "Workflowable ID",
+            "vi": "ID model chủ"
+          },
+          "description": {
+            "vi": "UUID hoặc ULID của model chủ đang được workflow xử lý.\n\nDùng string(36) để compatible với cả:\n  - UUID:  '550e8400-e29b-41d4-a716-446655440000' (36 chars)\n  - ULID:  '01ARZ3NDEKTSV4RRFFQ69G5FAV' (26 chars)\n\nKhông có FK cứng vì morph relationship không enforce FK ở DB level.\nTính toàn vẹn được đảm bảo ở application layer thông qua HasWorkflow trait.\n"
+          },
+          "length": 36
+        },
+        "workflowable_type": {
+          "type": "String",
+          "displayName": {
+            "en": "Workflowable Type",
+            "vi": "Loại model chủ"
+          },
+          "description": {
+            "vi": "Full class name của Eloquent model đang được workflow xử lý.\n\nVí dụ:\n  'App\\Models\\LeaveRequest'\n  'App\\Models\\PurchaseOrder'\n  'App\\Models\\ExpenseReport'\n\nKhuyến nghị: Đăng ký morph map để tránh class name thay đổi làm vỡ data:\n```php\n// AppServiceProvider::boot()\nRelation::morphMap([\n    'leave_request'   =\u003e LeaveRequest::class,\n    'purchase_order'  =\u003e PurchaseOrder::class,\n]);\n```\nSau khi đăng ký morph map:\n  workflowable_type = 'leave_request' (thay vì full class name)\n"
+          },
+          "length": 200
+        }
+      },
+      "propertyOrder": [
+        "workflow_definition_id",
+        "workflowable_type",
+        "workflowable_id",
+        "status",
+        "current_step",
+        "submitted_by",
+        "submitted_at",
+        "completed_at",
+        "metadata",
+        "definition",
+        "stepApprovals",
+        "history"
+      ],
+      "tableName": "workflow_instances"
+    },
+    "WorkflowStepApproval": {
+      "connection": "default",
+      "displayName": {
+        "en": "Workflow Step Approval",
+        "vi": "Bản ghi phê duyệt bước"
+      },
+      "kind": "object",
+      "name": "WorkflowStepApproval",
+      "options": {
+        "id": "Uuid",
+        "timestamps": true,
+        "softDelete": false,
+        "indexes": [
+          {
+            "columns": [
+              "workflow_instance_id",
+              "step_order"
+            ],
+            "name": "wf_step_approvals_instance_step_idx"
+          },
+          {
+            "columns": [
+              "approver_id"
+            ]
+          },
+          {
+            "columns": [
+              "status",
+              "deadline_at"
+            ],
+            "name": "wf_step_approvals_escalation_idx"
+          }
+        ]
+      },
+      "package": null,
+      "properties": {
+        "approver_id": {
+          "type": "Uuid",
+          "displayName": {
+            "en": "Approver ID",
+            "vi": "ID người phê duyệt"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "UUID của user được chỉ định approve row này.\n\nNULL = chưa chỉ định (sequential / any_of):\n  → Bất kỳ user có approver_role trong org đều có thể approve\n  → Khi approve() được gọi → approver_id sẽ được UPDATE = user đó\n  → \"First come, first served\" — ai approve trước thì chính họ được ghi nhận\n\nUUID = chỉ định cụ thể (parallel, hoặc submitter chọn người):\n  → Chỉ đúng user đó mới có quyền approve row này\n  → Được resolve tại start() time bởi WorkflowEngine (userResolver closure)\n\nLogic trong WorkflowStepApproval.canBeApprovedBy():\n  - approver_id != NULL → chỉ đúng user đó approve được\n  - approver_id = NULL → bất kỳ user có role (role check ở WorkflowEngine)\n\nKhông FK cứng vì user model ở package khác (cross-package boundary).\n"
+          }
+        },
+        "approver_role": {
+          "type": "String",
+          "displayName": {
+            "en": "Approver Role",
+            "vi": "Vai trò phê duyệt"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Role slug được phép approve row này (denormalized từ definition step).\n\nDenormalize để:\n  1. Validate quyền nhanh khi approve() (không cần JOIN với definitions)\n  2. Hiển thị \"Yêu cầu role: Manager\" trong UI\n  3. Sau khi escalate, row mới có escalate_to_role ở đây\n\nNULL = bất kỳ authenticated user nào cũng có thể approve.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nTham chiếu đến Role.slug trong pkg-omnify-laravel-sso.\nKhông FK cứng để tránh coupling giữa packages.\n"
+          },
+          "length": 100
+        },
+        "comment": {
+          "type": "Text",
+          "displayName": {
+            "en": "Comment",
+            "vi": "Nhận xét"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Nhận xét của approver khi đưa ra quyết định.\n\nBẮT BUỘC khi reject: Enforced ở application layer (WorkflowEngine.reject()),\nkhông phải DB constraint. Lý do: UI cần thông báo cho submitter biết tại sao\nbị từ chối.\n\nTÙY CHỌN khi approve: Approver có thể thêm nhận xét khi phê duyệt.\n\nĐược copy vào WorkflowHistory khi hành động xảy ra, để submitter có thể\nđọc toàn bộ comments theo dòng thời gian.\n\nVí dụ:\n  approve: \"Đã kiểm tra ngân sách. OK.\"\n  reject: \"Vượt hạn mức phê duyệt. Cần Director approve.\"\n  escalate (system): \"Escalated from manager to admin due to timeout.\"\n"
+          }
+        },
+        "deadline_at": {
+          "type": "Timestamp",
+          "displayName": {
+            "en": "Deadline At",
+            "vi": "Hạn phê duyệt"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Deadline cụ thể (absolute timestamp) cho approval row này.\n\nTính từ: created_at + deadline_hours (từ WorkflowDefinitionStep)\nNULL = không có deadline (deadline_hours = NULL trong definition step)\n\nVí dụ:\n  Step có deadline_hours = 24\n  Row tạo lúc 2024-01-15 09:00\n  → deadline_at = 2024-01-16 09:00\n\n  Step có deadline_hours = 8 (1 ngày làm việc)\n  Row tạo lúc 2024-01-15 09:00\n  → deadline_at = 2024-01-15 17:00\n  (Lưu ý: không tính working hours, cộng đơn giản theo giờ thực)\n\nEscalateExpiredWorkflowsCommand query:\n  SELECT * FROM workflow_step_approvals\n  WHERE status = 'pending' AND deadline_at \u003c NOW()\n\nEscalation row (row tạo sau khi escalate):\n  deadline_at = now() + (deadline_hours * 2)  ← gấp đôi thời gian gốc\n"
+          }
+        },
+        "decided_at": {
+          "type": "Timestamp",
+          "displayName": {
+            "en": "Decided At",
+            "vi": "Thời điểm quyết định"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Thời điểm approver đưa ra quyết định (approve, reject, hoặc delegate).\n\nNULL nếu chưa có quyết định (status = pending hoặc expired).\nSet khi: approve(), reject(), delegate() được gọi.\n\nDùng để:\n  - Tính thời gian xử lý từng bước: decided_at - created_at\n  - Audit: \"Manager A approve lúc nào?\"\n  - Dashboard: Timeline phê duyệt\n"
+          }
+        },
+        "definitionStep": {
+          "type": "Association",
+          "displayName": {
+            "en": "Definition Step",
+            "vi": "Bước định nghĩa"
+          },
+          "description": {
+            "vi": "Nullable FK. Dùng để đọc config bước nếu cần."
+          },
+          "relation": "ManyToOne",
+          "target": "WorkflowDefinitionStep"
+        },
+        "instance": {
+          "type": "Association",
+          "displayName": {
+            "en": "Workflow Instance",
+            "vi": "Phiên bản quy trình"
+          },
+          "relation": "ManyToOne",
+          "target": "WorkflowInstance"
+        },
+        "notified_at": {
+          "type": "Timestamp",
+          "displayName": {
+            "en": "Notified At",
+            "vi": "Thời điểm đã thông báo"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Thời điểm đã gửi notification (email/push) cho approver về approval row này.\n\nNULL = chưa gửi notification.\nSet khi WorkflowEngine tạo row và gửi notification.\n\nDùng cho:\n  1. Deduplication: Tránh gửi notification trùng lặp khi job retry\n  2. Reminder: \"Gửi reminder sau 8h nếu notified_at \u003c now() - 8h AND status = pending\"\n  3. Audit: \"Approver có nhận được notification không?\"\n\nVí dụ logic gửi reminder:\n```php\n// ReminderJob\nWorkflowStepApproval::query()\n    -\u003ewhere('status', 'pending')\n    -\u003ewhereNotNull('notified_at')\n    -\u003ewhere('notified_at', '\u003c', now()-\u003esubHours(8))\n    -\u003ewhereNull('deadline_at')  // hoặc deadline chưa tới\n    -\u003eget()\n    -\u003eeach(fn($approval) =\u003e ReminderNotification::send($approval));\n```\n"
+          }
+        },
+        "status": {
+          "type": "String",
+          "displayName": {
+            "en": "Status",
+            "vi": "Trạng thái phê duyệt"
+          },
+          "default": "pending",
+          "description": {
+            "vi": "Trạng thái hiện tại của approval row này.\n\n┌───────────┬──────────────────────────────────────────────────────┐\n│ Status    │ Ý nghĩa                                              │\n├───────────┼──────────────────────────────────────────────────────┤\n│ pending   │ Chưa xử lý — đang chờ approver hành động            │\n│ approved  │ Approver đã phê duyệt                                │\n│ rejected  │ Approver đã từ chối → instance bị rejected ngay      │\n│ delegated │ Approver ủy quyền cho người khác (tính năng tương lai)│\n│ expired   │ Quá deadline SLA → đã escalate sang role mới        │\n└───────────┴──────────────────────────────────────────────────────┘\n\nCác transitions hợp lệ:\n  pending → approved   (khi approve() thành công)\n  pending → rejected   (khi reject() thành công)\n  pending → expired    (khi EscalateExpiredWorkflowsCommand chạy)\n  pending → delegated  (tương lai — chưa implement)\n\nExpired không giống Rejected:\n  expired = quá hạn, chưa có quyết định → tạo row mới cho escalate_to_role\n  rejected = có quyết định từ chối → instance bị rejected luôn\n\nXem: Omnify\\Workflow\\Enums\\WorkflowStepApprovalStatus\n\nValues: pending | approved | rejected | delegated | expired\n"
+          },
+          "length": 20
+        },
+        "step_order": {
+          "type": "Int",
+          "displayName": {
+            "en": "Step Order",
+            "vi": "Thứ tự bước"
+          },
+          "description": {
+            "vi": "Số thứ tự bước (denormalized từ WorkflowDefinitionStep.step_order).\n\nDenormalize để query nhanh mà không cần JOIN với definition_steps:\n  SELECT * FROM workflow_step_approvals\n  WHERE workflow_instance_id = :id AND step_order = :current_step\n\nPhải khớp với WorkflowInstance.current_step để biết bước nào đang active.\n"
+          }
+        },
+        "workflow_definition_step_id": {
+          "type": "Uuid",
+          "displayName": {
+            "en": "Definition Step",
+            "vi": "Bước định nghĩa"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "FK → workflow_definition_steps (nullable).\n\nDùng để đọc cấu hình bước khi cần (deadline_hours, escalate_to_role, type).\nOn delete: SET NULL (giữ approval row ngay cả khi step template bị xóa).\n\nLưu ý: step_order và approver_role được DENORMALIZE vào row này,\nnên ngay cả khi FK này = NULL, vẫn đủ thông tin để display history.\n"
+          }
+        },
+        "workflow_instance_id": {
+          "type": "Uuid",
+          "displayName": {
+            "en": "Workflow Instance",
+            "vi": "Phiên bản quy trình"
+          },
+          "description": {
+            "vi": "FK → workflow_instances.\n\nOn delete: CASCADE (khi xóa instance → xóa tất cả approval rows).\nKhông thể NULL — row không có ý nghĩa nếu không có instance.\n"
+          }
+        }
+      },
+      "propertyOrder": [
+        "workflow_instance_id",
+        "workflow_definition_step_id",
+        "step_order",
+        "approver_id",
+        "approver_role",
+        "status",
+        "comment",
+        "decided_at",
+        "deadline_at",
+        "notified_at",
+        "instance",
+        "definitionStep"
+      ],
+      "tableName": "workflow_step_approvals"
+    }
+  }
+}

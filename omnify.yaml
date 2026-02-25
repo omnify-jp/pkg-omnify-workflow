@@ -7,7 +7,7 @@ connections:
     driver: mysql
     migrations:
       - type: laravel
-        path: database/migrations
+        path: database/migrations/omnify
         schemasPath: database/omnify/schemas.json
 
 default: default
