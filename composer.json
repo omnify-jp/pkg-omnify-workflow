@@ -49,13 +49,6 @@
             ]
         }
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../pkg-omnify-laravel-sso",
-            "options": { "symlink": true }
-        }
-    ],
     "config": {
         "sort-packages": true,
         "allow-plugins": {
