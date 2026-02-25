@@ -1,0 +1,352 @@
+# ==============================================================================
+# WorkflowStepApproval (Bản ghi phê duyệt từng bước)
+# ==============================================================================
+#
+# Mục đích:
+#   Mỗi WorkflowStepApproval là 1 "nhiệm vụ phê duyệt" cụ thể.
+#   Đây là nơi approver thực hiện hành động: approve() hoặc reject().
+#
+# Số rows tạo ra per step:
+#   ┌──────────────────────┬──────────────────────────────────────────────────┐
+#   │ Step Type            │ Số rows tạo ra                                   │
+#   ├──────────────────────┼──────────────────────────────────────────────────┤
+#   │ sequential / any_of  │ 1 row, approver_id = NULL                        │
+#   │                      │ Bất kỳ user có role đều approve được             │
+#   │                      │ Step complete khi có 1 row chuyển sang Approved  │
+#   ├──────────────────────┼──────────────────────────────────────────────────┤
+#   │ parallel             │ N rows (1 per user có role trong org)            │
+#   │                      │ N được resolve tại start() time bởi WorkflowEngine│
+#   │                      │ Step complete khi TẤT CẢ N rows = Approved       │
+#   │                      │ Nếu 1 row Rejected → instance rejected ngay      │
+#   └──────────────────────┴──────────────────────────────────────────────────┘
+#
+# Ví dụ dữ liệu:
+#   Workflow "purchase-order-approval" — Step 1 (sequential, role='manager'):
+#   ┌──┬────────────┬────────────┬─────────────┬───────────────┬─────────┐
+#   │id│instance_id │step_order  │approver_id  │approver_role  │status   │
+#   ├──┼────────────┼────────────┼─────────────┼───────────────┼─────────┤
+#   │1 │#42         │1           │NULL         │manager        │pending  │
+#   └──┴────────────┴────────────┴─────────────┴───────────────┴─────────┘
+#   → Manager A gọi approve() → approver_id được set = uuid-A, status = approved
+#
+#   Workflow "board-meeting-approval" — Step 1 (parallel, 3 board members):
+#   ┌──┬────────────┬────────────┬─────────────┬───────────────┬─────────┐
+#   │id│instance_id │step_order  │approver_id  │approver_role  │status   │
+#   ├──┼────────────┼────────────┼─────────────┼───────────────┼─────────┤
+#   │2 │#43         │1           │uuid-B1      │board_member   │pending  │
+#   │3 │#43         │1           │uuid-B2      │board_member   │pending  │
+#   │4 │#43         │1           │uuid-B3      │board_member   │approved │ ← B3 approve trước
+#   └──┴────────────┴────────────┴─────────────┴───────────────┴─────────┘
+#   → Vẫn còn 2 pending rows → step chưa complete
+#
+# Cơ chế SLA & Escalation:
+#   1. Tạo row → tính deadline_at = created_at + deadline_hours
+#   2. php artisan workflow:escalate-expired (chạy theo lịch, khuyến nghị hourly)
+#   3. Khi deadline_at < now() VÀ status = pending:
+#      a. Row hiện tại: status = expired
+#      b. Tạo row mới (escalation row):
+#         - approver_role = escalate_to_role
+#         - deadline_at   = now() + (deadline_hours * 2)
+#      c. Nếu escalate_to_role = NULL: auto-approve (step advance ngay)
+#   4. Escalation chỉ xảy ra 1 lần (row mới không có escalate config)
+#
+# Relationships:
+#   WorkflowStepApproval ──── WorkflowInstance (N:1, cascade delete)
+#   WorkflowStepApproval ──── WorkflowDefinitionStep (N:1, nullable FK)
+#
+# Business Rules:
+#   - Chỉ approve/reject được khi status = pending
+#   - Sequential: approver_id = NULL → ai có role cũng approve được
+#   - Parallel: approver_id set sẵn → chỉ đúng user đó mới approve được
+#   - Khi approve sequential: approver_id được UPDATE = user đã approve
+#   - Khi instance hoàn thành (terminal): không thể approve/reject bất kỳ row nào
+#
+# ==============================================================================
+
+kind: object
+
+displayName:
+  en: Workflow Step Approval
+  vi: Bản ghi phê duyệt bước
+
+options:
+  timestamps: true
+  softDelete: false
+  id: Uuid
+  indexes:
+    - columns: [workflow_instance_id, step_order]
+      name: wf_step_approvals_instance_step_idx
+      comment: "Index chính — tìm approvals của 1 step trong instance. Query nhiều nhất."
+    - columns: [approver_id]
+      comment: "Index tìm các approval row được assign cho 1 user (trang 'việc cần làm')"
+    - columns: [status, deadline_at]
+      name: wf_step_approvals_escalation_idx
+      comment: "Index cho EscalateExpiredWorkflowsCommand: WHERE status='pending' AND deadline_at < NOW()"
+
+properties:
+
+  # ---------------------------------------------------------------------------
+  # Parent References
+  # ---------------------------------------------------------------------------
+
+  workflow_instance_id:
+    type: Uuid
+    displayName:
+      en: Workflow Instance
+      vi: Phiên bản quy trình
+    description:
+      vi: |
+        FK → workflow_instances.
+
+        On delete: CASCADE (khi xóa instance → xóa tất cả approval rows).
+        Không thể NULL — row không có ý nghĩa nếu không có instance.
+
+  workflow_definition_step_id:
+    type: Uuid
+    nullable: true
+    displayName:
+      en: Definition Step
+      vi: Bước định nghĩa
+    description:
+      vi: |
+        FK → workflow_definition_steps (nullable).
+
+        Dùng để đọc cấu hình bước khi cần (deadline_hours, escalate_to_role, type).
+        On delete: SET NULL (giữ approval row ngay cả khi step template bị xóa).
+
+        Lưu ý: step_order và approver_role được DENORMALIZE vào row này,
+        nên ngay cả khi FK này = NULL, vẫn đủ thông tin để display history.
+
+  step_order:
+    type: Int
+    displayName:
+      en: Step Order
+      vi: Thứ tự bước
+    description:
+      vi: |
+        Số thứ tự bước (denormalized từ WorkflowDefinitionStep.step_order).
+
+        Denormalize để query nhanh mà không cần JOIN với definition_steps:
+          SELECT * FROM workflow_step_approvals
+          WHERE workflow_instance_id = :id AND step_order = :current_step
+
+        Phải khớp với WorkflowInstance.current_step để biết bước nào đang active.
+
+  # ---------------------------------------------------------------------------
+  # Approver Assignment
+  # ---------------------------------------------------------------------------
+
+  approver_id:
+    type: Uuid
+    nullable: true
+    displayName:
+      en: Approver ID
+      vi: ID người phê duyệt
+    description:
+      vi: |
+        UUID của user được chỉ định approve row này.
+
+        NULL = chưa chỉ định (sequential / any_of):
+          → Bất kỳ user có approver_role trong org đều có thể approve
+          → Khi approve() được gọi → approver_id sẽ được UPDATE = user đó
+          → "First come, first served" — ai approve trước thì chính họ được ghi nhận
+
+        UUID = chỉ định cụ thể (parallel, hoặc submitter chọn người):
+          → Chỉ đúng user đó mới có quyền approve row này
+          → Được resolve tại start() time bởi WorkflowEngine (userResolver closure)
+
+        Logic trong WorkflowStepApproval.canBeApprovedBy():
+          - approver_id != NULL → chỉ đúng user đó approve được
+          - approver_id = NULL → bất kỳ user có role (role check ở WorkflowEngine)
+
+        Không FK cứng vì user model ở package khác (cross-package boundary).
+
+  approver_role:
+    type: String
+    length: 100
+    nullable: true
+    displayName:
+      en: Approver Role
+      vi: Vai trò phê duyệt
+    description:
+      vi: |
+        Role slug được phép approve row này (denormalized từ definition step).
+
+        Denormalize để:
+          1. Validate quyền nhanh khi approve() (không cần JOIN với definitions)
+          2. Hiển thị "Yêu cầu role: Manager" trong UI
+          3. Sau khi escalate, row mới có escalate_to_role ở đây
+
+        NULL = bất kỳ authenticated user nào cũng có thể approve.
+
+        Ví dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'
+
+        Tham chiếu đến Role.slug trong pkg-omnify-laravel-sso.
+        Không FK cứng để tránh coupling giữa packages.
+
+  # ---------------------------------------------------------------------------
+  # Decision & Status
+  # ---------------------------------------------------------------------------
+
+  status:
+    type: String
+    length: 20
+    default: pending
+    displayName:
+      en: Status
+      vi: Trạng thái phê duyệt
+    description:
+      vi: |
+        Trạng thái hiện tại của approval row này.
+
+        ┌───────────┬──────────────────────────────────────────────────────┐
+        │ Status    │ Ý nghĩa                                              │
+        ├───────────┼──────────────────────────────────────────────────────┤
+        │ pending   │ Chưa xử lý — đang chờ approver hành động            │
+        │ approved  │ Approver đã phê duyệt                                │
+        │ rejected  │ Approver đã từ chối → instance bị rejected ngay      │
+        │ delegated │ Approver ủy quyền cho người khác (tính năng tương lai)│
+        │ expired   │ Quá deadline SLA → đã escalate sang role mới        │
+        └───────────┴──────────────────────────────────────────────────────┘
+
+        Các transitions hợp lệ:
+          pending → approved   (khi approve() thành công)
+          pending → rejected   (khi reject() thành công)
+          pending → expired    (khi EscalateExpiredWorkflowsCommand chạy)
+          pending → delegated  (tương lai — chưa implement)
+
+        Expired không giống Rejected:
+          expired = quá hạn, chưa có quyết định → tạo row mới cho escalate_to_role
+          rejected = có quyết định từ chối → instance bị rejected luôn
+
+        Xem: Omnify\Workflow\Enums\WorkflowStepApprovalStatus
+
+        Values: pending | approved | rejected | delegated | expired
+
+  comment:
+    type: Text
+    nullable: true
+    displayName:
+      en: Comment
+      vi: Nhận xét
+    description:
+      vi: |
+        Nhận xét của approver khi đưa ra quyết định.
+
+        BẮT BUỘC khi reject: Enforced ở application layer (WorkflowEngine.reject()),
+        không phải DB constraint. Lý do: UI cần thông báo cho submitter biết tại sao
+        bị từ chối.
+
+        TÙY CHỌN khi approve: Approver có thể thêm nhận xét khi phê duyệt.
+
+        Được copy vào WorkflowHistory khi hành động xảy ra, để submitter có thể
+        đọc toàn bộ comments theo dòng thời gian.
+
+        Ví dụ:
+          approve: "Đã kiểm tra ngân sách. OK."
+          reject: "Vượt hạn mức phê duyệt. Cần Director approve."
+          escalate (system): "Escalated from manager to admin due to timeout."
+
+  decided_at:
+    type: Timestamp
+    nullable: true
+    displayName:
+      en: Decided At
+      vi: Thời điểm quyết định
+    description:
+      vi: |
+        Thời điểm approver đưa ra quyết định (approve, reject, hoặc delegate).
+
+        NULL nếu chưa có quyết định (status = pending hoặc expired).
+        Set khi: approve(), reject(), delegate() được gọi.
+
+        Dùng để:
+          - Tính thời gian xử lý từng bước: decided_at - created_at
+          - Audit: "Manager A approve lúc nào?"
+          - Dashboard: Timeline phê duyệt
+
+  # ---------------------------------------------------------------------------
+  # SLA / Deadline
+  # ---------------------------------------------------------------------------
+
+  deadline_at:
+    type: Timestamp
+    nullable: true
+    displayName:
+      en: Deadline At
+      vi: Hạn phê duyệt
+    description:
+      vi: |
+        Deadline cụ thể (absolute timestamp) cho approval row này.
+
+        Tính từ: created_at + deadline_hours (từ WorkflowDefinitionStep)
+        NULL = không có deadline (deadline_hours = NULL trong definition step)
+
+        Ví dụ:
+          Step có deadline_hours = 24
+          Row tạo lúc 2024-01-15 09:00
+          → deadline_at = 2024-01-16 09:00
+
+          Step có deadline_hours = 8 (1 ngày làm việc)
+          Row tạo lúc 2024-01-15 09:00
+          → deadline_at = 2024-01-15 17:00
+          (Lưu ý: không tính working hours, cộng đơn giản theo giờ thực)
+
+        EscalateExpiredWorkflowsCommand query:
+          SELECT * FROM workflow_step_approvals
+          WHERE status = 'pending' AND deadline_at < NOW()
+
+        Escalation row (row tạo sau khi escalate):
+          deadline_at = now() + (deadline_hours * 2)  ← gấp đôi thời gian gốc
+
+  notified_at:
+    type: Timestamp
+    nullable: true
+    displayName:
+      en: Notified At
+      vi: Thời điểm đã thông báo
+    description:
+      vi: |
+        Thời điểm đã gửi notification (email/push) cho approver về approval row này.
+
+        NULL = chưa gửi notification.
+        Set khi WorkflowEngine tạo row và gửi notification.
+
+        Dùng cho:
+          1. Deduplication: Tránh gửi notification trùng lặp khi job retry
+          2. Reminder: "Gửi reminder sau 8h nếu notified_at < now() - 8h AND status = pending"
+          3. Audit: "Approver có nhận được notification không?"
+
+        Ví dụ logic gửi reminder:
+        ```php
+        // ReminderJob
+        WorkflowStepApproval::query()
+            ->where('status', 'pending')
+            ->whereNotNull('notified_at')
+            ->where('notified_at', '<', now()->subHours(8))
+            ->whereNull('deadline_at')  // hoặc deadline chưa tới
+            ->get()
+            ->each(fn($approval) => ReminderNotification::send($approval));
+        ```
+
+  # ---------------------------------------------------------------------------
+  # Relationships
+  # ---------------------------------------------------------------------------
+
+  instance:
+    type: Association
+    relation: ManyToOne
+    target: WorkflowInstance
+    displayName:
+      en: Workflow Instance
+      vi: Phiên bản quy trình
+
+  definitionStep:
+    type: Association
+    relation: ManyToOne
+    target: WorkflowDefinitionStep
+    displayName:
+      en: Definition Step
+      vi: Bước định nghĩa
+    description:
+      vi: "Nullable FK. Dùng để đọc config bước nếu cần."

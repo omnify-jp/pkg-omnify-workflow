@@ -1,0 +1,219 @@
+# ==============================================================================
+# WorkflowDefinitionStep (Bước trong quy trình)
+# ==============================================================================
+#
+# Mục đích:
+#   Mỗi WorkflowDefinition có 1 hoặc nhiều steps theo thứ tự (step_order).
+#   Steps xác định: ai phê duyệt, kiểu phê duyệt, deadline, và escalation.
+#
+# Ví dụ "purchase-order-approval" với 3 steps:
+#   ┌───────────────────────────────────────────────────────────────────────────┐
+#   │ step │ name              │ role        │ type       │ deadline │ escalate  │
+#   ├──────┼───────────────────┼─────────────┼────────────┼──────────┼───────────┤
+#   │  1   │ Kế toán kiểm tra  │ accountant  │ sequential │ 8h       │ manager   │
+#   │  2   │ Quản lý duyệt     │ manager     │ sequential │ 24h      │ admin     │
+#   │  3   │ HĐQT phê duyệt    │ board_member│ parallel   │ 72h      │ NULL      │
+#   └───────────────────────────────────────────────────────────────────────────┘
+#
+# Ý nghĩa của type:
+#   ┌────────────┬──────────────────────────────────────────────────────────────┐
+#   │ sequential │ 1 approval row, bất kỳ user có role duyệt là xong           │
+#   │ any_of     │ Giống sequential, tường minh hơn                             │
+#   │ parallel   │ N rows (1 per user trong org), TẤT CẢ phải approve          │
+#   └────────────┴──────────────────────────────────────────────────────────────┘
+#
+# Cơ chế SLA / Escalation:
+#   deadline_hours > 0:
+#     → Tính deadline_at = created_at + deadline_hours
+#     → php artisan workflow:escalate-expired kiểm tra định kỳ
+#     → Khi quá hạn: approval hiện tại → Expired
+#     → Tạo approval mới:
+#         - escalate_to_role != null → assign cho role đó, deadline = deadline_hours * 2
+#         - escalate_to_role = null  → auto-approve (không block workflow)
+#
+# Relationships:
+#   WorkflowDefinitionStep ──── WorkflowDefinition  (N:1, cascade delete)
+#   WorkflowDefinitionStep ──── WorkflowStepApproval (reference, nullable FK)
+#
+# Business Rules:
+#   - (workflow_definition_id, step_order) là UNIQUE
+#   - step_order bắt đầu từ 1, tăng dần (không bắt buộc liên tiếp nhưng khuyến khích)
+#   - Khi definition bị xóa → tất cả steps bị xóa (cascade delete)
+#   - Khi step bị xóa → WorkflowStepApproval.workflow_definition_step_id → NULL (set null)
+#
+# ==============================================================================
+
+kind: object
+
+displayName:
+  en: Workflow Definition Step
+  vi: Bước quy trình phê duyệt
+
+options:
+  timestamps: true
+  softDelete: false
+  id: Uuid
+  indexes:
+    - columns: [workflow_definition_id, step_order]
+      unique: true      # Unique: mỗi definition chỉ có 1 step per thứ tự
+
+properties:
+
+  # ---------------------------------------------------------------------------
+  # Relationship
+  # ---------------------------------------------------------------------------
+
+  workflow_definition_id:
+    type: Uuid
+    displayName:
+      en: Workflow Definition
+      vi: Quy trình phê duyệt
+    description:
+      vi: FK → workflow_definitions. Cascade delete khi xóa definition.
+
+  # ---------------------------------------------------------------------------
+  # Thứ tự và tên
+  # ---------------------------------------------------------------------------
+
+  step_order:
+    type: Int
+    default: 1
+    displayName:
+      en: Step Order
+      vi: Thứ tự bước
+    description:
+      vi: |
+        Thứ tự thực hiện bước, bắt đầu từ 1.
+        WorkflowEngine advance theo thứ tự này.
+        Ví dụ: 1 → 2 → 3 → (approved)
+        Lưu ý: Gaps được chấp nhận nhưng không khuyến khích.
+
+  name:
+    type: String
+    length: 200
+    displayName:
+      en: Step Name
+      vi: Tên bước
+    description:
+      vi: "Tên hiển thị trong UI và history. VD: 'Quản lý trực tiếp', 'Ban giám đốc'"
+
+  description:
+    type: Text
+    nullable: true
+    displayName:
+      en: Description
+      vi: Mô tả bước
+
+  # ---------------------------------------------------------------------------
+  # Approver Configuration
+  # ---------------------------------------------------------------------------
+
+  approver_role:
+    type: String
+    length: 100
+    nullable: true
+    displayName:
+      en: Approver Role
+      vi: Vai trò phê duyệt
+    description:
+      vi: |
+        Slug của role được phép phê duyệt bước này.
+        Tham chiếu đến Role.slug trong pkg-omnify-laravel-sso.
+        KHÔNG có FK cứng để tránh coupling giữa packages.
+
+        Ví dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'
+
+        NULL = bất kỳ authenticated user nào cũng có thể approve
+        (Rất hiếm dùng — chỉ cho workflows không cần kiểm soát chặt)
+
+  type:
+    type: String
+    length: 20
+    default: sequential
+    displayName:
+      en: Approval Type
+      vi: Kiểu phê duyệt
+    description:
+      vi: |
+        sequential (default):
+          → Tạo 1 WorkflowStepApproval với approver_id = NULL
+          → Bất kỳ user có approver_role trong org đều có thể approve
+          → Step complete khi có 1 approval → Approved
+
+        any_of:
+          → Giống sequential, alias tường minh hơn
+          → "Bất kỳ ai trong role group"
+
+        parallel:
+          → Tạo N WorkflowStepApprovals, 1 per user có role trong org
+          → N được resolve tại start() time bởi WorkflowEngine
+          → Step complete khi TẤT CẢ N rows đều Approved
+          → Nếu bất kỳ 1 row Rejected → toàn bộ instance Rejected ngay
+          → Use case: "tất cả thành viên HĐQT phải ký"
+
+        Values: sequential | any_of | parallel
+
+  # ---------------------------------------------------------------------------
+  # SLA / Deadline
+  # ---------------------------------------------------------------------------
+
+  deadline_hours:
+    type: Int
+    nullable: true
+    displayName:
+      en: Deadline Hours
+      vi: Hạn phê duyệt (giờ)
+    description:
+      vi: |
+        Số giờ để hoàn thành bước tính từ khi bước được kích hoạt.
+
+        NULL = không có deadline, chờ vô thời hạn
+
+        Ví dụ:
+          8   = phải duyệt trong 8 giờ (1 ngày làm việc)
+          24  = phải duyệt trong 24 giờ
+          48  = phải duyệt trong 2 ngày
+          72  = phải duyệt trong 3 ngày
+
+        Cơ chế:
+          1. Khi tạo WorkflowStepApproval → tính deadline_at = now() + deadline_hours
+          2. php artisan workflow:escalate-expired chạy định kỳ (khuyến khích hourly)
+          3. Khi deadline_at < now() → escalate (xem escalate_to_role)
+
+  escalate_to_role:
+    type: String
+    length: 100
+    nullable: true
+    displayName:
+      en: Escalate To Role
+      vi: Chuyển đến vai trò khi quá hạn
+    description:
+      vi: |
+        Role nhận approval khi approval hiện tại quá deadline.
+
+        NULL = auto-approve khi quá hạn
+          → Workflow không bị block bởi approver không phản hồi
+          → Dùng cho các bước ít quan trọng hoặc thông báo đơn giản
+
+        'admin' = chuyển lên admin khi manager không duyệt trong 24h
+          → Approval mới được tạo với role='admin', deadline = 24h * 2 = 48h
+
+        Quy trình escalation:
+          1. approval_current.status = Expired
+          2. Tạo approval_new:
+               approver_role = escalate_to_role
+               deadline_at = now() + (deadline_hours * 2)
+          3. Nếu approval_new cũng hết hạn → escalation dừng (không vô hạn)
+             (chỉ escalate 1 lần, approval_new không có escalate config)
+
+  # ---------------------------------------------------------------------------
+  # Relationships
+  # ---------------------------------------------------------------------------
+
+  definition:
+    type: Association
+    relation: ManyToOne
+    target: WorkflowDefinition
+    displayName:
+      en: Workflow Definition
+      vi: Quy trình

@@ -1,0 +1,170 @@
+# ==============================================================================
+# WorkflowDefinition (Template quy trình phê duyệt)
+# ==============================================================================
+#
+# Mục đích:
+#   Lưu "khuôn mẫu" của một quy trình phê duyệt.
+#   Khi cần chạy workflow → WorkflowEngine clone template thành WorkflowInstance.
+#
+# Nguồn dữ liệu (thứ tự ưu tiên):
+#   1. DB record: (slug, console_organization_id = orgId)  → org-specific override
+#   2. DB record: (slug, console_organization_id = NULL)   → global default
+#   3. config('workflow.definitions.{slug}')               → config fallback
+#
+# Ví dụ use cases:
+#   ┌─────────────────────────────────────────────────────────────────────────┐
+#   │  slug                   │ org_id  │ Mô tả                              │
+#   ├─────────────────────────┼─────────┼────────────────────────────────────┤
+#   │  leave-approval         │  NULL   │ Quy trình nghỉ phép toàn hệ thống  │
+#   │  leave-approval         │  uuid-A │ Org A tùy chỉnh quy trình của họ   │
+#   │  purchase-order-approval│  NULL   │ Quy trình PO mặc định              │
+#   └─────────────────────────────────────────────────────────────────────────┘
+#
+# Relationships:
+#   WorkflowDefinition ──┬── WorkflowDefinitionStep  (1:N, cascade delete)
+#                        └── WorkflowInstance        (1:N, set null on delete)
+#
+# Business Rules:
+#   - (console_organization_id, slug) là UNIQUE
+#   - is_active = false → WorkflowEngine báo lỗi nếu cố start
+#   - Khi xóa definition, instances đang chạy KHÔNG bị xóa (nullable FK)
+#   - Khi sửa definition (thêm/bỏ steps), instances đang chạy KHÔNG bị ảnh hưởng
+#     (chúng đã snapshot steps vào workflow_step_approvals tại start time)
+#
+# Security:
+#   - Chỉ admin mới có thể tạo/sửa/xóa definitions
+#   - Org-specific definitions chỉ admin của org đó mới quản lý được
+#
+# ==============================================================================
+
+kind: object
+
+displayName:
+  en: Workflow Definition
+  vi: Định nghĩa quy trình phê duyệt
+
+options:
+  timestamps: true
+  softDelete: false     # Không soft delete — khi xóa thì xóa hẳn (instances giữ lại)
+  id: Uuid
+  indexes:
+    - columns: [console_organization_id, slug]
+      unique: true      # Mỗi org chỉ có 1 definition per slug
+    - columns: [console_organization_id]
+    - columns: [is_active]
+
+properties:
+
+  # ---------------------------------------------------------------------------
+  # Định danh
+  # ---------------------------------------------------------------------------
+
+  slug:
+    type: String
+    length: 100
+    displayName:
+      en: Slug
+      vi: Mã định danh
+    description:
+      en: Unique identifier used in code. Convention: {domain}-{action}-approval
+      vi: |
+        Định danh duy nhất dùng trong code.
+        Convention đặt tên: {domain}-{action}
+        Ví dụ: leave-approval, purchase-order-approval, document-review, travel-request
+
+  console_organization_id:
+    type: String
+    length: 36
+    nullable: true
+    displayName:
+      en: Organization ID
+      vi: ID tổ chức
+    description:
+      en: |
+        NULL = global definition (applies to all organizations)
+        UUID = org-specific override (applies only to this organization)
+      vi: |
+        NULL  = định nghĩa toàn cầu, áp dụng cho tất cả tổ chức
+        UUID  = override chỉ cho tổ chức cụ thể này
+        Khi WorkflowEngine tìm definition:
+          → Tìm org-specific trước (console_organization_id = orgId)
+          → Nếu không có → tìm global (console_organization_id = NULL)
+          → Nếu không có → fallback config file
+
+  name:
+    type: String
+    length: 200
+    displayName:
+      en: Name
+      vi: Tên quy trình
+    description:
+      vi: "Tên hiển thị cho người dùng. VD: 'Phê duyệt đơn nghỉ phép'"
+
+  description:
+    type: Text
+    nullable: true
+    displayName:
+      en: Description
+      vi: Mô tả
+    description:
+      vi: Mô tả chi tiết về quy trình, điều kiện áp dụng, v.v.
+
+  # ---------------------------------------------------------------------------
+  # Trạng thái
+  # ---------------------------------------------------------------------------
+
+  is_active:
+    type: Boolean
+    default: true
+    displayName:
+      en: Active
+      vi: Đang hoạt động
+    description:
+      vi: |
+        true  = WorkflowEngine có thể dùng definition này để start workflow
+        false = Definition bị tắt, cố start sẽ báo RuntimeException
+        Dùng để "tạm dừng" 1 quy trình mà không cần xóa
+
+  # ---------------------------------------------------------------------------
+  # Mở rộng
+  # ---------------------------------------------------------------------------
+
+  config:
+    type: Json
+    nullable: true
+    displayName:
+      en: Config Override
+      vi: Cấu hình mở rộng
+    description:
+      vi: |
+        JSON config bổ sung, dự phòng cho extensions của host application.
+        WorkflowEngine không xử lý field này — chỉ expose qua events.
+
+        Ví dụ sử dụng:
+          {
+            "notify_on_each_step": true,
+            "require_attachment": false,
+            "max_amount": 10000000,
+            "webhook_url": "https://hooks.slack.com/...",
+            "allowed_submitter_roles": ["staff", "manager"]
+          }
+
+  # ---------------------------------------------------------------------------
+  # Relationships
+  # ---------------------------------------------------------------------------
+
+  steps:
+    type: Association
+    relation: OneToMany
+    target: WorkflowDefinitionStep
+    displayName:
+      en: Steps
+      vi: Các bước quy trình
+
+  instances:
+    type: Association
+    relation: OneToMany
+    target: WorkflowInstance
+    displayName:
+      en: Instances
+      vi: Các lần chạy

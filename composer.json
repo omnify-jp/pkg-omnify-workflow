@@ -1,0 +1,68 @@
+{
+    "name": "omnifyjp/omnify-client-laravel-workflow",
+    "description": "Approval Workflow Engine for Omnify services — multi-step approval flows with RBAC integration",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "workflow",
+        "approval",
+        "bpm",
+        "omnify"
+    ],
+    "authors": [
+        {
+            "name": "Omnify Team",
+            "email": "dev@omnify.jp"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0|^12.0",
+        "illuminate/database": "^11.0|^12.0"
+    },
+    "require-dev": {
+        "inertiajs/inertia-laravel": "^2.0",
+        "laravel/pint": "^1.0",
+        "laravel/sanctum": "^4.2",
+        "lcobucci/jwt": "^5.6",
+        "omnifyjp/omnify-client-laravel-sso": "@dev",
+        "orchestra/testbench": "^9.0|^10.0",
+        "pestphp/pest": "^4.0",
+        "phpunit/phpunit": "^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Omnify\\Workflow\\": "app/",
+            "Omnify\\Workflow\\Database\\Factories\\": "database/factories/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Omnify\\Workflow\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Omnify\\Workflow\\WorkflowServiceProvider"
+            ]
+        }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../pkg-omnify-laravel-sso",
+            "options": { "symlink": true }
+        }
+    ],
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "omnifyjp/omnify-client-laravel-sso": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

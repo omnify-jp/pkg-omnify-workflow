@@ -1,0 +1,355 @@
+# ==============================================================================
+# WorkflowInstance (Phiên bản chạy của quy trình)
+# ==============================================================================
+#
+# Mục đích:
+#   WorkflowInstance là "bản thực thi thực tế" của một WorkflowDefinition.
+#   Khi user submit đơn (nghỉ phép, mua hàng, v.v.), hệ thống tạo 1 instance
+#   để theo dõi toàn bộ vòng đời của request đó.
+#
+# Polymorphic Relationship (Morph):
+#   Instance có thể gắn với BẤT KỲ model nào thông qua morph:
+#     workflowable_type = 'App\Models\LeaveRequest'
+#     workflowable_id   = 'uuid-of-the-request'
+#
+#   Để sử dụng, model cần implement HasWorkflow trait:
+#   ```php
+#   class LeaveRequest extends Model {
+#       use HasWorkflow;
+#   }
+#   // Sau đó start workflow:
+#   $leaveRequest->startWorkflow('leave-approval', $user);
+#   ```
+#
+# Vòng đời (State Machine):
+#   ┌─────────────────────────────────────────────────────────────────────────┐
+#   │                                                                         │
+#   │   [startWorkflow()]                                                     │
+#   │        │                                                                │
+#   │        ▼                                                                │
+#   │     PENDING ──────────────────────────────────────────► CANCELLED       │
+#   │        │      [cancel()]                                                │
+#   │        │                                                                │
+#   │        │   [approve() — all steps done]                                 │
+#   │        ├──────────────────────────────────────────────► APPROVED        │
+#   │        │                                                                │
+#   │        │   [reject() — any step]                                        │
+#   │        └──────────────────────────────────────────────► REJECTED        │
+#   │                                                                         │
+#   └─────────────────────────────────────────────────────────────────────────┘
+#
+# Cơ chế xử lý nhiều steps:
+#   1. start()   → tạo instance (status=pending, current_step=1)
+#                 → tạo WorkflowStepApprovals cho step 1
+#   2. approve() → nếu step hoàn thành:
+#                   - còn step tiếp theo: current_step++ → tạo approvals mới
+#                   - hết step: status = approved, completed_at = now()
+#   3. reject()  → status = rejected ngay, không cần các step còn lại
+#   4. cancel()  → status = cancelled, không hoàn thành
+#
+# Ràng buộc nghiệp vụ:
+#   - 1 model chỉ nên có TỐI ĐA 1 active workflow tại 1 thời điểm
+#   - HasWorkflow.startWorkflow() sẽ throw exception nếu đã có active workflow
+#   - Khi WorkflowDefinition bị xóa: workflow_definition_id → NULL (lịch sử vẫn giữ)
+#
+# Relationships:
+#   WorkflowInstance ──── WorkflowDefinition (N:1, nullable FK)
+#   WorkflowInstance ──── WorkflowStepApproval (1:N, cascade delete)
+#   WorkflowInstance ──── WorkflowHistory (1:N, cascade delete)
+#   WorkflowInstance ←─── [any Model] via morph (workflowable)
+#
+# ==============================================================================
+
+kind: object
+
+displayName:
+  en: Workflow Instance
+  vi: Phiên bản quy trình đang chạy
+
+options:
+  timestamps: true
+  softDelete: false
+  id: Uuid
+  indexes:
+    - columns: [workflowable_type, workflowable_id]
+      name: wf_instances_workflowable_index
+      comment: "Index để tìm workflow của 1 model cụ thể. Dùng trong HasWorkflow.activeWorkflow()"
+    - columns: [status]
+      comment: "Index để filter theo status (trang dashboard pending approvals)"
+    - columns: [submitted_by]
+      comment: "Index để tìm tất cả workflows submitted by 1 user"
+
+properties:
+
+  # ---------------------------------------------------------------------------
+  # Reference to Definition (Template)
+  # ---------------------------------------------------------------------------
+
+  workflow_definition_id:
+    type: Uuid
+    nullable: true
+    displayName:
+      en: Workflow Definition
+      vi: Quy trình phê duyệt
+    description:
+      vi: |
+        FK → workflow_definitions.
+
+        NULLABLE để giữ lịch sử khi definition bị xóa.
+        Khi definition bị xóa: workflow_definition_id → NULL.
+        Instance vẫn đọc được (historical data), chỉ mất reference tới template.
+
+        Lưu ý quan trọng:
+          Khi definition bị sửa (thêm/bỏ steps sau khi instance đã start):
+          → Instance đang chạy vẫn theo cấu trúc cũ (snapshot tại thời điểm start).
+          → Không bị ảnh hưởng bởi thay đổi definition sau đó.
+          Đây là behavior đúng — đảm bảo tính nhất quán.
+
+        On delete: SET NULL (không cascade để bảo toàn lịch sử)
+
+  # ---------------------------------------------------------------------------
+  # Polymorphic Relationship (Morph)
+  # ---------------------------------------------------------------------------
+
+  workflowable_type:
+    type: String
+    length: 200
+    displayName:
+      en: Workflowable Type
+      vi: Loại model chủ
+    description:
+      vi: |
+        Full class name của Eloquent model đang được workflow xử lý.
+
+        Ví dụ:
+          'App\Models\LeaveRequest'
+          'App\Models\PurchaseOrder'
+          'App\Models\ExpenseReport'
+
+        Khuyến nghị: Đăng ký morph map để tránh class name thay đổi làm vỡ data:
+        ```php
+        // AppServiceProvider::boot()
+        Relation::morphMap([
+            'leave_request'   => LeaveRequest::class,
+            'purchase_order'  => PurchaseOrder::class,
+        ]);
+        ```
+        Sau khi đăng ký morph map:
+          workflowable_type = 'leave_request' (thay vì full class name)
+
+  workflowable_id:
+    type: String
+    length: 36
+    displayName:
+      en: Workflowable ID
+      vi: ID model chủ
+    description:
+      vi: |
+        UUID hoặc ULID của model chủ đang được workflow xử lý.
+
+        Dùng string(36) để compatible với cả:
+          - UUID:  '550e8400-e29b-41d4-a716-446655440000' (36 chars)
+          - ULID:  '01ARZ3NDEKTSV4RRFFQ69G5FAV' (26 chars)
+
+        Không có FK cứng vì morph relationship không enforce FK ở DB level.
+        Tính toàn vẹn được đảm bảo ở application layer thông qua HasWorkflow trait.
+
+  # ---------------------------------------------------------------------------
+  # Status & Progress
+  # ---------------------------------------------------------------------------
+
+  status:
+    type: String
+    length: 20
+    default: pending
+    displayName:
+      en: Status
+      vi: Trạng thái
+    description:
+      vi: |
+        Trạng thái tổng thể của workflow instance.
+
+        ┌───────────┬──────────┬─────────────────────────────────────────────┐
+        │ Status    │ Terminal │ Ý nghĩa                                     │
+        ├───────────┼──────────┼─────────────────────────────────────────────┤
+        │ pending   │ Không    │ Đang chờ phê duyệt (đang chạy bình thường)  │
+        │ approved  │ Có       │ Đã được phê duyệt đầy đủ (tất cả steps)    │
+        │ rejected  │ Có       │ Bị từ chối (ít nhất 1 approver reject)      │
+        │ cancelled │ Có       │ Bị hủy bởi submitter hoặc admin             │
+        └───────────┴──────────┴─────────────────────────────────────────────┘
+
+        Terminal = không thể thay đổi sau khi đạt trạng thái đó.
+        WorkflowEngine kiểm tra: nếu isTerminal() → throw exception khi cố approve/reject.
+
+        Xem: Omnify\Workflow\Enums\WorkflowStatus
+
+        Values: pending | approved | rejected | cancelled
+
+  current_step:
+    type: Int
+    default: 1
+    displayName:
+      en: Current Step
+      vi: Bước hiện tại
+    description:
+      vi: |
+        Số thứ tự bước đang được xử lý.
+
+        Bắt đầu từ 1 (step_order đầu tiên của definition).
+        Sau khi 1 step hoàn thành → current_step tăng lên step tiếp theo.
+        Khi current_step vượt qua số step cuối → workflow completed (status = approved).
+
+        Ví dụ với workflow 3 bước:
+          Vừa start:       current_step = 1 (kế toán kiểm tra)
+          Kế toán approve: current_step = 2 (quản lý duyệt)
+          Quản lý approve: current_step = 3 (HĐQT phê duyệt)
+          HĐQT approve:    current_step = 4 → vượt max_step → approved!
+
+        Dùng để query approval rows:
+          SELECT * FROM workflow_step_approvals
+          WHERE workflow_instance_id = ? AND step_order = ?
+
+        Lưu ý: Với parallel steps, current_step không tăng cho đến khi TẤT CẢ approvals
+        của step đó đều approved.
+
+  # ---------------------------------------------------------------------------
+  # Submitter Information
+  # ---------------------------------------------------------------------------
+
+  submitted_by:
+    type: Uuid
+    nullable: true
+    displayName:
+      en: Submitted By
+      vi: Người submit
+    description:
+      vi: |
+        UUID của user đã submit (khởi tạo) workflow này.
+
+        Nullable vì user model ở package khác (cross-package boundary).
+        Không FK cứng — application layer kiểm tra tính hợp lệ.
+
+        Dùng cho:
+          1. Gửi notification khi workflow approved/rejected
+          2. Hiển thị "Submitted by: Nguyễn Văn A" trong UI
+          3. Kiểm tra quyền hủy: chỉ submitter và admin được cancel
+          4. Filter "Workflow của tôi" trong dashboard
+
+        Xem: WorkflowInstance.isSubmittedBy(string $userId): bool
+
+  submitted_at:
+    type: Timestamp
+    nullable: true
+    displayName:
+      en: Submitted At
+      vi: Thời điểm submit
+    description:
+      vi: |
+        Thời điểm workflow được khởi tạo (startWorkflow() được gọi).
+
+        Thường = created_at, nhưng tách riêng để:
+          - Hỗ trợ "pre-create" workflow với submitted_at khác created_at
+          - Tính SLA từ submitted_at (không phải created_at)
+          - Rõ ràng hơn về mặt nghiệp vụ
+
+  completed_at:
+    type: Timestamp
+    nullable: true
+    displayName:
+      en: Completed At
+      vi: Thời điểm hoàn thành
+    description:
+      vi: |
+        Thời điểm workflow đạt trạng thái terminal (approved/rejected/cancelled).
+
+        NULL nếu workflow còn đang pending.
+        Set khi: status chuyển sang approved, rejected, hoặc cancelled.
+
+        Dùng để tính:
+          - Tổng thời gian xử lý: completed_at - submitted_at
+          - SLA compliance: có hoàn thành trong thời gian cam kết không?
+
+  # ---------------------------------------------------------------------------
+  # Metadata
+  # ---------------------------------------------------------------------------
+
+  metadata:
+    type: Json
+    nullable: true
+    displayName:
+      en: Metadata
+      vi: Dữ liệu bổ sung
+    description:
+      vi: |
+        JSON object chứa context bổ sung từ application.
+
+        WorkflowEngine KHÔNG xử lý metadata — chỉ lưu trữ và truyền qua events.
+        Host application listeners có thể đọc để customize behavior.
+
+        Ví dụ sử dụng:
+        ```php
+        $leaveRequest->startWorkflow(
+            definitionSlug: 'leave-approval',
+            submitter: $user,
+            metadata: [
+                'reason'     => 'Việc gia đình',
+                'leave_days' => 3,
+                'leave_type' => 'annual',
+                'department' => 'Engineering',
+                'urgency'    => 'normal',
+            ]
+        );
+        ```
+
+        Một số patterns phổ biến:
+          {
+            "reason": string,           // Lý do submit
+            "leave_days": number,       // Số ngày nghỉ
+            "amount": number,           // Số tiền (purchase order)
+            "department": string,       // Phòng ban
+            "urgency": "low|normal|high",
+            "attachments": [url, ...],  // Link file đính kèm
+            "notes": string             // Ghi chú thêm
+          }
+
+        Cách đọc trong event listener:
+        ```php
+        // Trong WorkflowApprovedListener
+        $metadata = $event->instance->metadata;
+        $leaveRequest = $event->instance->workflowable;
+        // Gửi email với context metadata
+        ```
+
+  # ---------------------------------------------------------------------------
+  # Relationships
+  # ---------------------------------------------------------------------------
+
+  definition:
+    type: Association
+    relation: ManyToOne
+    target: WorkflowDefinition
+    displayName:
+      en: Workflow Definition
+      vi: Template quy trình
+    description:
+      vi: "FK → workflow_definitions. Nullable (nullOnDelete)."
+
+  stepApprovals:
+    type: Association
+    relation: OneToMany
+    target: WorkflowStepApproval
+    displayName:
+      en: Step Approvals
+      vi: Danh sách phê duyệt
+    description:
+      vi: "Tất cả approval rows của instance này (cascade delete)."
+
+  history:
+    type: Association
+    relation: OneToMany
+    target: WorkflowHistory
+    displayName:
+      en: History
+      vi: Lịch sử
+    description:
+      vi: "Audit trail theo thứ tự thời gian (cascade delete). Ordered by created_at ASC."

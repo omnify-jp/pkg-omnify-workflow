@@ -1,0 +1,350 @@
+# ==============================================================================
+# WorkflowHistory (Audit Trail bất biến)
+# ==============================================================================
+#
+# Mục đích:
+#   Lưu lại TOÀN BỘ các sự kiện đã xảy ra trong vòng đời của 1 workflow instance.
+#   Bảng này là "sổ ghi chép" không thể xóa hay sửa đổi — chỉ thêm vào (append-only).
+#
+# Tính chất thiết kế (Append-Only Event Log):
+#   1. IMMUTABLE  — Không bao giờ UPDATE hay DELETE rows
+#   2. COMPLETE   — Ghi lại TẤT CẢ hành động (kể cả system actions như escalation)
+#   3. AUDITABLE  — Có thể reconstruct toàn bộ trạng thái workflow từ history
+#   4. ORDERED    — created_at là thứ tự thời gian thực tế (không có updated_at)
+#
+# Model chỉ có created_at, KHÔNG có updated_at:
+#   → public $timestamps = false;  (trong Model)
+#   → created_at được set manually khi tạo row
+#
+# Actions được ghi lại (xem WorkflowHistory constants):
+#   ┌──────────────────┬──────────────────────────────────────────────────────┐
+#   │ Action           │ Khi nào                                              │
+#   ├──────────────────┼──────────────────────────────────────────────────────┤
+#   │ submitted        │ startWorkflow() được gọi                             │
+#   │ step_started     │ Bước mới được kích hoạt (approvals tạo xong)        │
+#   │ step_approved    │ 1 approver approve (dùng cho parallel: ghi per-user) │
+#   │ step_completed   │ Toàn bộ step hoàn thành → advance sang bước tiếp   │
+#   │ approved         │ Workflow hoàn tất (tất cả steps passed)              │
+#   │ rejected         │ Workflow bị từ chối                                  │
+#   │ cancelled        │ Workflow bị hủy bởi submitter hoặc admin             │
+#   │ escalated        │ Step quá deadline → tạo approval mới cho higher role │
+#   │ expired          │ 1 approval row hết hạn SLA                           │
+#   └──────────────────┴──────────────────────────────────────────────────────┘
+#
+# Ví dụ history của 1 workflow 2 bước:
+#   ┌─────────────────┬──────────┬───────────────┬────────┬──────────┬─────────────────────┐
+#   │ created_at      │ actor    │ action        │ from   │ to       │ comment             │
+#   ├─────────────────┼──────────┼───────────────┼────────┼──────────┼─────────────────────┤
+#   │ 09:00:00        │ userA    │ submitted     │ NULL   │ pending  │                     │
+#   │ 09:00:01        │ (system) │ step_started  │ NULL   │ pending  │ Step 1: Kế toán     │
+#   │ 10:30:00        │ userB    │ step_approved │ pending│ pending  │ Đã kiểm tra, OK     │
+#   │ 10:30:01        │ (system) │ step_completed│ pending│ pending  │ Advance to step 2   │
+#   │ 10:30:02        │ (system) │ step_started  │ pending│ pending  │ Step 2: Quản lý     │
+#   │ 11:00:00        │ userC    │ approved      │ pending│ approved │ Đồng ý, chấp thuận  │
+#   └─────────────────┴──────────┴───────────────┴────────┴──────────┴─────────────────────┘
+#
+# Ví dụ history với escalation:
+#   ┌─────────────────┬──────────┬───────────────┬────────┬──────────┬─────────────────────────────┐
+#   │ 09:00           │ userA    │ submitted     │ NULL   │ pending  │                             │
+#   │ 09:01           │ (system) │ step_started  │ NULL   │ pending  │ Step 1: Manager (24h)       │
+#   │ 33:01 (+24h)    │ (system) │ expired       │ pending│ pending  │ Manager không phản hồi      │
+#   │ 33:01           │ (system) │ escalated     │ pending│ pending  │ Escalated: manager → admin  │
+#   │ 35:00           │ userD    │ approved      │ pending│ approved │ Admin phê duyệt thay        │
+#   └─────────────────┴──────────┴───────────────┴────────┴──────────┴─────────────────────────────┘
+#
+# Sử dụng trong code:
+#   // Lấy history theo thứ tự thời gian
+#   $history = $instance->history; // OrderBy created_at ASC
+#
+#   // Ghi history trong WorkflowEngine
+#   WorkflowHistory::create([
+#       'workflow_instance_id' => $instance->id,
+#       'actor_id'             => $actor?->id,
+#       'action'               => WorkflowHistory::APPROVED,
+#       'from_status'          => 'pending',
+#       'to_status'            => 'approved',
+#       'step_order'           => $instance->current_step,
+#       'comment'              => $comment,
+#       'metadata'             => ['approval_id' => $row->id],
+#       'created_at'           => now(),
+#   ]);
+#
+# Relationships:
+#   WorkflowHistory ──── WorkflowInstance (N:1, cascade delete)
+#
+# ==============================================================================
+
+kind: object
+
+displayName:
+  en: Workflow History
+  vi: Lịch sử quy trình
+
+options:
+  timestamps: false      # Chỉ có created_at, không có updated_at
+  softDelete: false
+  id: Uuid
+  indexes:
+    - columns: [workflow_instance_id, created_at]
+      name: wf_history_instance_time_idx
+      comment: "Index chính — lấy history của 1 instance theo thứ tự thời gian (query nhiều nhất)"
+    - columns: [actor_id]
+      comment: "Index audit — tìm tất cả actions của 1 user"
+
+properties:
+
+  # ---------------------------------------------------------------------------
+  # Parent Reference
+  # ---------------------------------------------------------------------------
+
+  workflow_instance_id:
+    type: Uuid
+    displayName:
+      en: Workflow Instance
+      vi: Phiên bản quy trình
+    description:
+      vi: |
+        FK → workflow_instances.
+
+        On delete: CASCADE (khi xóa instance → xóa toàn bộ history của nó).
+        History không có ý nghĩa độc lập nếu không có instance.
+
+  # ---------------------------------------------------------------------------
+  # Actor
+  # ---------------------------------------------------------------------------
+
+  actor_id:
+    type: Uuid
+    nullable: true
+    displayName:
+      en: Actor
+      vi: Người thực hiện
+    description:
+      vi: |
+        UUID của user thực hiện hành động.
+
+        NULL = System action (không có user cụ thể):
+          - Escalation do cron job (workflow:escalate-expired)
+          - Auto-approve khi escalate_to_role = NULL
+          - step_started (được tạo tự động sau khi step trước complete)
+
+        UUID = User action:
+          - submitted (submitter gọi startWorkflow)
+          - step_approved / approved (approver gọi approve)
+          - rejected (approver gọi reject)
+          - cancelled (submitter hoặc admin gọi cancel)
+
+        Không FK cứng vì user model ở package khác (cross-package boundary).
+        Application layer cần tự resolve user từ actor_id khi hiển thị UI.
+
+  # ---------------------------------------------------------------------------
+  # Event Data
+  # ---------------------------------------------------------------------------
+
+  action:
+    type: String
+    length: 50
+    displayName:
+      en: Action
+      vi: Hành động
+    description:
+      vi: |
+        Tên loại sự kiện đã xảy ra.
+
+        Các giá trị chuẩn (xem WorkflowHistory constants):
+        ┌──────────────────┬─────────────────────────────────────────────────┐
+        │ Constant         │ Khi nào ghi                                     │
+        ├──────────────────┼─────────────────────────────────────────────────┤
+        │ submitted        │ WorkflowEngine::start() thành công              │
+        │ step_started     │ Sau khi tạo approvals cho bước mới              │
+        │ step_approved    │ 1 approver approve (parallel: 1 row per user)   │
+        │ step_completed   │ Toàn bộ step hoàn thành, advance sang bước tiếp│
+        │ approved         │ Workflow hoàn tất, tất cả steps passed          │
+        │ rejected         │ WorkflowEngine::reject() thành công             │
+        │ cancelled        │ WorkflowEngine::cancel() thành công             │
+        │ escalated        │ Approval row mới được tạo cho escalate_to_role  │
+        │ expired          │ Approval row cũ được mark expired               │
+        └──────────────────┴─────────────────────────────────────────────────┘
+
+        Custom actions:
+          Host application có thể thêm custom actions nếu cần track thêm events.
+          VD: 'delegated', 'comment_added', 'recalled', v.v.
+
+        Sử dụng constant để tránh typo:
+        ```php
+        WorkflowHistory::SUBMITTED   // 'submitted'
+        WorkflowHistory::APPROVED    // 'approved'
+        WorkflowHistory::ESCALATED   // 'escalated'
+        ```
+
+  from_status:
+    type: String
+    length: 20
+    nullable: true
+    displayName:
+      en: From Status
+      vi: Trạng thái trước
+    description:
+      vi: |
+        Trạng thái của WORKFLOW INSTANCE trước khi action xảy ra.
+
+        NULL cho các actions không thay đổi instance status:
+          - submitted: từ "không tồn tại" sang pending (from = NULL)
+          - step_started: status không đổi (vẫn pending)
+          - step_approved: status không đổi (vẫn pending)
+
+        Giá trị khi có: pending | approved | rejected | cancelled
+        Xem WorkflowStatus enum cho danh sách đầy đủ.
+
+        LƯU Ý: Đây là status của INSTANCE, không phải status của approval row.
+
+  to_status:
+    type: String
+    length: 20
+    nullable: true
+    displayName:
+      en: To Status
+      vi: Trạng thái sau
+    description:
+      vi: |
+        Trạng thái của WORKFLOW INSTANCE sau khi action xảy ra.
+
+        Ví dụ các chuyển trạng thái:
+          submitted:       NULL    → pending
+          step_approved:   pending → pending  (không đổi)
+          approved:        pending → approved
+          rejected:        pending → rejected
+          cancelled:       pending → cancelled
+          escalated:       pending → pending  (không đổi)
+
+        Giá trị khi có: pending | approved | rejected | cancelled
+
+  step_order:
+    type: Int
+    nullable: true
+    displayName:
+      en: Step Order
+      vi: Bước đang xử lý
+    description:
+      vi: |
+        Số thứ tự bước đang xử lý tại thời điểm action xảy ra.
+
+        NULL cho các actions ở level instance (không liên quan đến bước cụ thể):
+          - submitted: chưa có step nào active
+          - approved/rejected/cancelled: toàn bộ workflow (không phải 1 step)
+
+        Có giá trị cho step-level actions:
+          - step_started:    step_order = bước mới được kích hoạt
+          - step_approved:   step_order = bước mà approver vừa approve
+          - step_completed:  step_order = bước vừa hoàn thành
+          - escalated:       step_order = bước bị escalate
+
+        Dùng để filter history theo bước trong UI:
+          "Hiển thị chỉ history của Step 2"
+          → WHERE workflow_instance_id = ? AND step_order = 2
+
+  comment:
+    type: Text
+    nullable: true
+    displayName:
+      en: Comment
+      vi: Nhận xét / Lý do
+    description:
+      vi: |
+        Nhận xét hoặc lý do được ghi lại cùng với action.
+
+        Nguồn:
+          - User action: approver điền khi approve/reject, submitter điền khi cancel
+          - System action: WorkflowEngine tạo message tự động
+            VD: "Escalated from manager to admin due to SLA timeout."
+            VD: "Auto-approved: escalate_to_role = null, step advanced."
+
+        Được lưu ở đây để history luôn self-contained:
+          Ngay cả khi WorkflowStepApproval bị xóa, history vẫn có đủ thông tin.
+
+  metadata:
+    type: Json
+    nullable: true
+    displayName:
+      en: Metadata
+      vi: Dữ liệu bổ sung
+    description:
+      vi: |
+        JSON object chứa context bổ sung giúp debug và audit.
+
+        WorkflowEngine điền metadata tùy theo loại action:
+
+        action = step_approved:
+          {
+            "approval_id":    "uuid",         // WorkflowStepApproval.id
+            "approver_role":  "manager",      // Role của approver
+            "parallel_total": 3,              // Tổng số approvals cần (parallel)
+            "parallel_done":  2               // Số đã approve (parallel)
+          }
+
+        action = escalated:
+          {
+            "old_approval_id": "uuid",        // Approval row cũ (expired)
+            "new_approval_id": "uuid",        // Approval row mới (escalated)
+            "from_role":       "manager",     // Role cũ
+            "to_role":         "admin",       // Role mới
+            "deadline_at":     "2024-01-16T17:00:00Z" // Deadline mới
+          }
+
+        action = expired:
+          {
+            "approval_id": "uuid",            // Row đã expired
+            "deadline_at": "2024-01-16T09:00:00Z", // Deadline đã qua
+            "hours_overdue": 2.5              // Số giờ quá hạn
+          }
+
+        action = cancelled:
+          {
+            "cancelled_by_role": "admin"      // Role của người hủy
+          }
+
+        Nguyên tắc: metadata giúp debug mà không cần query thêm bảng khác.
+        Dữ liệu trong metadata là denormalized — có thể stale nếu record gốc thay đổi.
+
+  # ---------------------------------------------------------------------------
+  # Timestamps (chỉ created_at — immutable rows)
+  # ---------------------------------------------------------------------------
+
+  created_at:
+    type: Timestamp
+    nullable: true
+    displayName:
+      en: Created At
+      vi: Thời điểm xảy ra
+    description:
+      vi: |
+        Thời điểm sự kiện xảy ra (thực tế — không phải thời điểm lưu vào DB).
+
+        Đây là thứ tự thực tế của sự kiện trong workflow.
+        Khi hiển thị timeline:
+          ORDER BY workflow_history.created_at ASC
+
+        Set manually khi tạo row (không dùng $timestamps tự động):
+        ```php
+        WorkflowHistory::create([
+            ...
+            'created_at' => now(),
+        ]);
+        ```
+
+        Không có updated_at — rows là IMMUTABLE (append-only).
+        Nếu cần "sửa" thông tin, tạo 1 row mới với action phù hợp.
+
+  # ---------------------------------------------------------------------------
+  # Relationships
+  # ---------------------------------------------------------------------------
+
+  instance:
+    type: Association
+    relation: ManyToOne
+    target: WorkflowInstance
+    displayName:
+      en: Workflow Instance
+      vi: Phiên bản quy trình
+    description:
+      vi: "FK → workflow_instances (cascade delete)."
