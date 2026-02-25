@@ -1,0 +1,15 @@
+{
+  "name": "@omnify/workflow",
+  "description": "Approval Workflow Engine for Omnify services with Omnify schema-driven development",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "omnify": "omnify"
+  },
+  "devDependencies": {
+    "@omnifyjp/omnify": "^1.1.7",
+    "@omnifyjp/ui": "^2.0.2",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
