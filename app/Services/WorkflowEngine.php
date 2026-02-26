@@ -21,6 +21,9 @@ use Omnify\Workflow\Models\WorkflowDefinitionStep;
 use Omnify\Workflow\Models\WorkflowHistory;
 use Omnify\Workflow\Models\WorkflowInstance;
 use Omnify\Workflow\Models\WorkflowStepApproval;
+use Omnify\Workflow\Services\Handlers\ParallelStepHandler;
+use Omnify\Workflow\Services\Handlers\SerialStepHandler;
+use Omnify\Workflow\Services\Handlers\StepHandlerInterface;
 use RuntimeException;
 
 /**
@@ -416,14 +419,24 @@ class WorkflowEngine
     }
 
     /**
+     * Resolve the correct step handler based on step type.
+     *
+     * Parallel steps use ParallelStepHandler (N approval rows).
+     * Sequential and any_of steps use SerialStepHandler (1 approval row).
+     */
+    private function resolveHandler(WorkflowDefinitionStep $step): StepHandlerInterface
+    {
+        return match ($step->type) {
+            WorkflowStepType::Parallel => app(ParallelStepHandler::class),
+            default => app(SerialStepHandler::class),
+        };
+    }
+
+    /**
      * Tạo WorkflowStepApproval rows cho 1 step.
      *
-     * Sequential/AnyOf:
-     *   → 1 row với approver_id = override nếu có, else null
-     *
-     * Parallel:
-     *   → N rows, 1 per user có role trong org
-     *   → Nếu không tìm được user nào → fallback về 1 row (any of role)
+     * Delegates to the appropriate StepHandlerInterface implementation
+     * based on step type (serial vs parallel).
      */
     private function createStepApprovals(
         WorkflowInstance $instance,
@@ -431,70 +444,28 @@ class WorkflowEngine
         array $approverOverrides,
         ?string $orgId
     ): void {
-        $stepOrder = $step->step_order;
-        $overrideKey = "step_{$stepOrder}";
-        $deadlineAt = $step->calculateDeadlineAt();
-        $definitionStepId = $step->exists ? $step->id : null;
-
-        if ($step->type === WorkflowStepType::Parallel) {
-            // Resolve danh sách users có role trong org
-            $users = $step->approver_role
-                ? ($this->userResolver)($step->approver_role, $orgId)
-                : collect();
-
-            if ($users->isNotEmpty()) {
-                foreach ($users as $user) {
-                    WorkflowStepApproval::create([
-                        'workflow_instance_id' => $instance->id,
-                        'workflow_definition_step_id' => $definitionStepId,
-                        'step_order' => $stepOrder,
-                        'approver_id' => (string) $user->getKey(),
-                        'approver_role' => $step->approver_role,
-                        'status' => WorkflowStepApprovalStatus::Pending->value,
-                        'deadline_at' => $deadlineAt,
-                    ]);
-                }
-
-                return;
-            }
-
-            // Fallback nếu không tìm được user (tránh block workflow)
-        }
-
-        // Sequential / AnyOf (hoặc parallel fallback)
-        $specificApproverId = $approverOverrides[$overrideKey] ?? null;
-
-        WorkflowStepApproval::create([
-            'workflow_instance_id' => $instance->id,
-            'workflow_definition_step_id' => $definitionStepId,
-            'step_order' => $stepOrder,
-            'approver_id' => $specificApproverId,
-            'approver_role' => $step->approver_role,
-            'status' => WorkflowStepApprovalStatus::Pending->value,
-            'deadline_at' => $deadlineAt,
-        ]);
+        $handler = $this->resolveHandler($step);
+        $handler->createApprovals($instance, $step, $approverOverrides, $orgId, $this->userResolver);
     }
 
     /**
      * Kiểm tra bước hiện tại đã hoàn thành chưa.
      *
-     * Sequential/AnyOf: Bất kỳ 1 approval → Approved là xong
-     * Parallel: Tất cả approvals của bước phải Approved, không còn Pending
+     * Delegates to the appropriate handler for the current step.
+     * Falls back to SerialStepHandler if the step model cannot be resolved.
      */
     private function isStepComplete(WorkflowInstance $instance): bool
     {
-        $pendingCount = WorkflowStepApproval::where('workflow_instance_id', $instance->id)
+        $currentStepModel = $instance->definition?->steps()
             ->where('step_order', $instance->current_step)
-            ->where('status', WorkflowStepApprovalStatus::Pending->value)
-            ->count();
+            ->first();
 
-        $approvedCount = WorkflowStepApproval::where('workflow_instance_id', $instance->id)
-            ->where('step_order', $instance->current_step)
-            ->where('status', WorkflowStepApprovalStatus::Approved->value)
-            ->count();
+        if (! $currentStepModel) {
+            // Fallback: use serial handler (same completion logic regardless of type)
+            return app(SerialStepHandler::class)->isComplete($instance);
+        }
 
-        // Nếu có ít nhất 1 approved và không còn pending → step complete
-        return $approvedCount > 0 && $pendingCount === 0;
+        return $this->resolveHandler($currentStepModel)->isComplete($instance);
     }
 
     /**

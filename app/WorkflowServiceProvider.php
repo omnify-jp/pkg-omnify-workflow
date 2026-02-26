@@ -7,6 +7,8 @@ namespace Omnify\Workflow;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Omnify\Workflow\Console\Commands\EscalateExpiredWorkflowsCommand;
+use Omnify\Workflow\Services\Handlers\ParallelStepHandler;
+use Omnify\Workflow\Services\Handlers\SerialStepHandler;
 use Omnify\Workflow\Services\WorkflowEngine;
 
 class WorkflowServiceProvider extends ServiceProvider
@@ -15,6 +17,7 @@ class WorkflowServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../config/workflow.php', 'workflow');
 
+        $this->registerHandlers();
         $this->registerWorkflowEngine();
     }
 
@@ -29,6 +32,18 @@ class WorkflowServiceProvider extends ServiceProvider
     }
 
     // =========================================================================
+
+    /**
+     * Register step handler classes as simple (stateless) bindings.
+     *
+     * Handlers are stateless so singleton is not needed — a fresh instance
+     * per resolve is fine and avoids hidden state between requests.
+     */
+    private function registerHandlers(): void
+    {
+        $this->app->bind(SerialStepHandler::class);
+        $this->app->bind(ParallelStepHandler::class);
+    }
 
     /**
      * Đăng ký WorkflowEngine singleton với userResolver closure.
