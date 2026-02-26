@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@omnifyjp/omnify": "^1.1.7",
-    "@omnifyjp/ui": "^2.3.0",
+    "@omnifyjp/ui": "^2.3.3",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
   }
