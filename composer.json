@@ -1,5 +1,5 @@
 {
-    "name": "omnifyjp/pkg-omnify-workflow",
+    "name": "omnifyjp/pkg-omnify-laravel-workflow",
     "description": "Approval Workflow Engine for Omnify services — multi-step approval flows with RBAC integration",
     "type": "library",
     "license": "MIT",
