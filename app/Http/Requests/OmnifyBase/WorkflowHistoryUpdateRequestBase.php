@@ -60,7 +60,6 @@ abstract class WorkflowHistoryUpdateRequestBase extends FormRequest
             'comment' => ['nullable', 'string'],
             'metadata' => ['nullable', 'array'],
             'created_at' => ['nullable', 'date'],
-            'instance_id' => ['sometimes', 'integer', 'exists:workflow_instances,id'],
         ];
     }
 
@@ -87,7 +86,6 @@ abstract class WorkflowHistoryUpdateRequestBase extends FormRequest
             'comment',
             'metadata',
             'created_at',
-            'instance_id',
         ];
 
         foreach ($keys as $key) {

@@ -42,8 +42,6 @@ class WorkflowHistoryResourceBase extends JsonResource
             'comment' => $this->comment,
             'metadata' => $this->metadata,
             'created_at' => $this->created_at?->toISOString(),
-            'instance_id' => $this->instance_id,
-            'instance' => $this->whenLoaded('instance', fn() => new \Omnify\Workflow\Http\Resources\WorkflowInstanceResource($this->instance)),
         ];
     }
 }

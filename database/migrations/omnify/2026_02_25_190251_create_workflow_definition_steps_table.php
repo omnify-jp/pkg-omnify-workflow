@@ -34,11 +34,8 @@ return new class extends Migration
             $table->string('type', 20)->default('sequential')->comment('Approval Type');
             $table->integer('deadline_hours')->nullable()->comment('Deadline Hours');
             $table->string('escalate_to_role', 100)->nullable()->comment('Escalate To Role');
-            $table->uuid('definition_id')->comment('Workflow Definition');
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
-            $table->foreign('definition_id')->references('id')->on('workflow_definitions')->onDelete('restrict')->onUpdate('cascade');
-            $table->index('definition_id');
             $table->unique(['workflow_definition_id', 'step_order']);
         });
     }

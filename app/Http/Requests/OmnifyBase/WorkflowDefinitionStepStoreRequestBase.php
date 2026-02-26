@@ -59,7 +59,6 @@ abstract class WorkflowDefinitionStepStoreRequestBase extends FormRequest
             'type' => ['required', 'string', 'max:20'],
             'deadline_hours' => ['nullable', 'integer'],
             'escalate_to_role' => ['nullable', 'string', 'max:100'],
-            'definition_id' => ['required', 'integer', 'exists:workflow_definitions,id'],
         ];
     }
 
@@ -85,7 +84,6 @@ abstract class WorkflowDefinitionStepStoreRequestBase extends FormRequest
             'type',
             'deadline_hours',
             'escalate_to_role',
-            'definition_id',
         ];
 
         foreach ($keys as $key) {

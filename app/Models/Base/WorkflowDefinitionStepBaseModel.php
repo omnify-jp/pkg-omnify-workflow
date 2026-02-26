@@ -33,7 +33,6 @@ use Omnify\Workflow\Models\Base\Locales\WorkflowDefinitionStepLocales;
  * @property string $type
  * @property int|null $deadline_hours
  * @property string|null $escalate_to_role
- * @property int $definition_id
  */
 class WorkflowDefinitionStepBaseModel extends BaseModel
 {
@@ -90,7 +89,6 @@ class WorkflowDefinitionStepBaseModel extends BaseModel
         'type',
         'deadline_hours',
         'escalate_to_role',
-        'definition_id',
     ];
 
     /**
@@ -116,11 +114,4 @@ class WorkflowDefinitionStepBaseModel extends BaseModel
         ];
     }
 
-    /**
-     * Get the definition that owns this model.
-     */
-    public function definition(): BelongsTo
-    {
-        return $this->belongsTo(\Omnify\Workflow\Models\WorkflowDefinition::class, 'definition_id');
-    }
 }

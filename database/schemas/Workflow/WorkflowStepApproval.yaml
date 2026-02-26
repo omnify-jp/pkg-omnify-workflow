@@ -333,20 +333,3 @@ properties:
   # Relationships
   # ---------------------------------------------------------------------------
 
-  instance:
-    type: Association
-    relation: ManyToOne
-    target: WorkflowInstance
-    displayName:
-      en: Workflow Instance
-      vi: Phiên bản quy trình
-
-  definitionStep:
-    type: Association
-    relation: ManyToOne
-    target: WorkflowDefinitionStep
-    displayName:
-      en: Definition Step
-      vi: Bước định nghĩa
-    description:
-      vi: "Nullable FK. Dùng để đọc config bước nếu cần."

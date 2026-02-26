@@ -36,14 +36,8 @@ return new class extends Migration
             $table->timestamp('decided_at')->nullable()->comment('Decided At');
             $table->timestamp('deadline_at')->nullable()->comment('Deadline At');
             $table->timestamp('notified_at')->nullable()->comment('Notified At');
-            $table->uuid('instance_id')->comment('Workflow Instance');
-            $table->uuid('definition_step_id')->comment('Definition Step');
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
-            $table->foreign('instance_id')->references('id')->on('workflow_instances')->onDelete('restrict')->onUpdate('cascade');
-            $table->foreign('definition_step_id')->references('id')->on('workflow_definition_steps')->onDelete('restrict')->onUpdate('cascade');
-            $table->index('instance_id');
-            $table->index('definition_step_id');
             $table->index(['workflow_instance_id', 'step_order'], 'wf_step_approvals_instance_step_idx');
             $table->index('approver_id');
             $table->index(['status', 'deadline_at'], 'wf_step_approvals_escalation_idx');

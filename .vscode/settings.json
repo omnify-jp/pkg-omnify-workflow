@@ -1,0 +1,6 @@
+{
+  "yaml.schemas": {
+    "https://cdn.jsdelivr.net/npm/@famgia/omnify-bin@latest/omnify-config-schema.json": "omnify.yaml",
+    "https://cdn.jsdelivr.net/npm/@famgia/omnify-bin@latest/omnify-schema.json": "database/schemas/Workflow/**/*.yaml"
+  }
+}

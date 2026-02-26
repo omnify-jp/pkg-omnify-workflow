@@ -35,9 +35,6 @@ return new class extends Migration
             $table->text('comment')->nullable()->comment('Comment');
             $table->json('metadata')->nullable()->comment('Metadata');
             $table->timestamp('created_at')->nullable()->comment('Created At');
-            $table->uuid('instance_id')->comment('Workflow Instance');
-            $table->foreign('instance_id')->references('id')->on('workflow_instances')->onDelete('restrict')->onUpdate('cascade');
-            $table->index('instance_id');
             $table->index(['workflow_instance_id', 'created_at'], 'wf_history_instance_time_idx');
             $table->index('actor_id');
         });

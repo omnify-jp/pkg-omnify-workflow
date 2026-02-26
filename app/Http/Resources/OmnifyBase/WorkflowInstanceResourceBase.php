@@ -42,8 +42,6 @@ class WorkflowInstanceResourceBase extends JsonResource
             'submitted_at' => $this->submitted_at?->toISOString(),
             'completed_at' => $this->completed_at?->toISOString(),
             'metadata' => $this->metadata,
-            'definition_id' => $this->definition_id,
-            'definition' => $this->whenLoaded('definition', fn() => new \Omnify\Workflow\Http\Resources\WorkflowDefinitionResource($this->definition)),
             'stepApprovals' => $this->whenLoaded('stepApprovals', fn() => \Omnify\Workflow\Http\Resources\WorkflowStepApprovalResource::collection($this->stepApprovals)),
             'history' => $this->whenLoaded('history', fn() => \Omnify\Workflow\Http\Resources\WorkflowHistoryResource::collection($this->history)),
             'created_at' => $this->created_at?->toISOString(),

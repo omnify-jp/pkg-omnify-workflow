@@ -35,11 +35,8 @@ return new class extends Migration
             $table->timestamp('submitted_at')->nullable()->comment('Submitted At');
             $table->timestamp('completed_at')->nullable()->comment('Completed At');
             $table->json('metadata')->nullable()->comment('Metadata');
-            $table->uuid('definition_id')->comment('Workflow Definition');
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
-            $table->foreign('definition_id')->references('id')->on('workflow_definitions')->onDelete('restrict')->onUpdate('cascade');
-            $table->index('definition_id');
             $table->index(['workflowable_type', 'workflowable_id'], 'wf_instances_workflowable_index');
             $table->index('status');
             $table->index('submitted_by');

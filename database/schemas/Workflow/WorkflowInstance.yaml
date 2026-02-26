@@ -324,16 +324,6 @@ properties:
   # Relationships
   # ---------------------------------------------------------------------------
 
-  definition:
-    type: Association
-    relation: ManyToOne
-    target: WorkflowDefinition
-    displayName:
-      en: Workflow Definition
-      vi: Template quy trình
-    description:
-      vi: "FK → workflow_definitions. Nullable (nullOnDelete)."
-
   stepApprovals:
     type: Association
     relation: OneToMany

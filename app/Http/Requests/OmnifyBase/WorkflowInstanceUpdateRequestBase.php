@@ -60,7 +60,6 @@ abstract class WorkflowInstanceUpdateRequestBase extends FormRequest
             'submitted_at' => ['nullable', 'date'],
             'completed_at' => ['nullable', 'date'],
             'metadata' => ['nullable', 'array'],
-            'definition_id' => ['sometimes', 'integer', 'exists:workflow_definitions,id'],
         ];
     }
 
@@ -87,7 +86,6 @@ abstract class WorkflowInstanceUpdateRequestBase extends FormRequest
             'submitted_at',
             'completed_at',
             'metadata',
-            'definition_id',
         ];
 
         foreach ($keys as $key) {

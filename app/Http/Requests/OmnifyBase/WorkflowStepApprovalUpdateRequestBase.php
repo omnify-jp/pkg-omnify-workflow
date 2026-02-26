@@ -61,8 +61,6 @@ abstract class WorkflowStepApprovalUpdateRequestBase extends FormRequest
             'decided_at' => ['nullable', 'date'],
             'deadline_at' => ['nullable', 'date'],
             'notified_at' => ['nullable', 'date'],
-            'instance_id' => ['sometimes', 'integer', 'exists:workflow_instances,id'],
-            'definition_step_id' => ['sometimes', 'integer', 'exists:workflow_definition_steps,id'],
         ];
     }
 
@@ -90,8 +88,6 @@ abstract class WorkflowStepApprovalUpdateRequestBase extends FormRequest
             'decided_at',
             'deadline_at',
             'notified_at',
-            'instance_id',
-            'definition_step_id',
         ];
 
         foreach ($keys as $key) {

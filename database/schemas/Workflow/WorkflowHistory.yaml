@@ -335,16 +335,3 @@ properties:
         Không có updated_at — rows là IMMUTABLE (append-only).
         Nếu cần "sửa" thông tin, tạo 1 row mới với action phù hợp.
 
-  # ---------------------------------------------------------------------------
-  # Relationships
-  # ---------------------------------------------------------------------------
-
-  instance:
-    type: Association
-    relation: ManyToOne
-    target: WorkflowInstance
-    displayName:
-      en: Workflow Instance
-      vi: Phiên bản quy trình
-    description:
-      vi: "FK → workflow_instances (cascade delete)."

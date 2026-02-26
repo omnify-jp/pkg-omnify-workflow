@@ -43,10 +43,6 @@ class WorkflowStepApprovalResourceBase extends JsonResource
             'decided_at' => $this->decided_at?->toISOString(),
             'deadline_at' => $this->deadline_at?->toISOString(),
             'notified_at' => $this->notified_at?->toISOString(),
-            'instance_id' => $this->instance_id,
-            'instance' => $this->whenLoaded('instance', fn() => new \Omnify\Workflow\Http\Resources\WorkflowInstanceResource($this->instance)),
-            'definition_step_id' => $this->definition_step_id,
-            'definitionStep' => $this->whenLoaded('definitionStep', fn() => new \Omnify\Workflow\Http\Resources\WorkflowDefinitionStepResource($this->definitionStep)),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

@@ -34,7 +34,6 @@ use Omnify\Workflow\Models\Base\Locales\WorkflowHistoryLocales;
  * @property string|null $comment
  * @property array|null $metadata
  * @property mixed|null $created_at
- * @property int $instance_id
  */
 class WorkflowHistoryBaseModel extends BaseModel
 {
@@ -92,7 +91,6 @@ class WorkflowHistoryBaseModel extends BaseModel
         'comment',
         'metadata',
         'created_at',
-        'instance_id',
     ];
 
     /**
@@ -119,11 +117,4 @@ class WorkflowHistoryBaseModel extends BaseModel
         ];
     }
 
-    /**
-     * Get the instance that owns this model.
-     */
-    public function instance(): BelongsTo
-    {
-        return $this->belongsTo(\Omnify\Workflow\Models\WorkflowInstance::class, 'instance_id');
-    }
 }

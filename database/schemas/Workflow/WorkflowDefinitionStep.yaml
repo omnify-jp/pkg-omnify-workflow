@@ -206,14 +206,3 @@ properties:
           3. Nếu approval_new cũng hết hạn → escalation dừng (không vô hạn)
              (chỉ escalate 1 lần, approval_new không có escalate config)
 
-  # ---------------------------------------------------------------------------
-  # Relationships
-  # ---------------------------------------------------------------------------
-
-  definition:
-    type: Association
-    relation: ManyToOne
-    target: WorkflowDefinition
-    displayName:
-      en: Workflow Definition
-      vi: Quy trình

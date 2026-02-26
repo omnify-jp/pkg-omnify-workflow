@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T10:02:50Z",
+  "generatedAt": "2026-02-25T23:25:07Z",
   "database": {
     "driver": "mysql"
   },
@@ -202,15 +202,6 @@
             "vi": "Số giờ để hoàn thành bước tính từ khi bước được kích hoạt.\n\nNULL = không có deadline, chờ vô thời hạn\n\nVí dụ:\n  8   = phải duyệt trong 8 giờ (1 ngày làm việc)\n  24  = phải duyệt trong 24 giờ\n  48  = phải duyệt trong 2 ngày\n  72  = phải duyệt trong 3 ngày\n\nCơ chế:\n  1. Khi tạo WorkflowStepApproval → tính deadline_at = now() + deadline_hours\n  2. php artisan workflow:escalate-expired chạy định kỳ (khuyến khích hourly)\n  3. Khi deadline_at \u003c now() → escalate (xem escalate_to_role)\n"
           }
         },
-        "definition": {
-          "type": "Association",
-          "displayName": {
-            "en": "Workflow Definition",
-            "vi": "Quy trình"
-          },
-          "relation": "ManyToOne",
-          "target": "WorkflowDefinition"
-        },
         "description": {
           "type": "Text",
           "displayName": {
@@ -284,8 +275,7 @@
         "approver_role",
         "type",
         "deadline_hours",
-        "escalate_to_role",
-        "definition"
+        "escalate_to_role"
       ],
       "tableName": "workflow_definition_steps"
     },
@@ -374,18 +364,6 @@
           },
           "length": 20
         },
-        "instance": {
-          "type": "Association",
-          "displayName": {
-            "en": "Workflow Instance",
-            "vi": "Phiên bản quy trình"
-          },
-          "description": {
-            "vi": "FK → workflow_instances (cascade delete)."
-          },
-          "relation": "ManyToOne",
-          "target": "WorkflowInstance"
-        },
         "metadata": {
           "type": "Json",
           "displayName": {
@@ -440,8 +418,7 @@
         "step_order",
         "comment",
         "metadata",
-        "created_at",
-        "instance"
+        "created_at"
       ],
       "tableName": "workflow_histories"
     },
@@ -500,18 +477,6 @@
           "description": {
             "vi": "Số thứ tự bước đang được xử lý.\n\nBắt đầu từ 1 (step_order đầu tiên của definition).\nSau khi 1 step hoàn thành → current_step tăng lên step tiếp theo.\nKhi current_step vượt qua số step cuối → workflow completed (status = approved).\n\nVí dụ với workflow 3 bước:\n  Vừa start:       current_step = 1 (kế toán kiểm tra)\n  Kế toán approve: current_step = 2 (quản lý duyệt)\n  Quản lý approve: current_step = 3 (HĐQT phê duyệt)\n  HĐQT approve:    current_step = 4 → vượt max_step → approved!\n\nDùng để query approval rows:\n  SELECT * FROM workflow_step_approvals\n  WHERE workflow_instance_id = ? AND step_order = ?\n\nLưu ý: Với parallel steps, current_step không tăng cho đến khi TẤT CẢ approvals\ncủa step đó đều approved.\n"
           }
-        },
-        "definition": {
-          "type": "Association",
-          "displayName": {
-            "en": "Workflow Definition",
-            "vi": "Template quy trình"
-          },
-          "description": {
-            "vi": "FK → workflow_definitions. Nullable (nullOnDelete)."
-          },
-          "relation": "ManyToOne",
-          "target": "WorkflowDefinition"
         },
         "history": {
           "type": "Association",
@@ -626,7 +591,6 @@
         "submitted_at",
         "completed_at",
         "metadata",
-        "definition",
         "stepApprovals",
         "history"
       ],
@@ -724,27 +688,6 @@
             "vi": "Thời điểm approver đưa ra quyết định (approve, reject, hoặc delegate).\n\nNULL nếu chưa có quyết định (status = pending hoặc expired).\nSet khi: approve(), reject(), delegate() được gọi.\n\nDùng để:\n  - Tính thời gian xử lý từng bước: decided_at - created_at\n  - Audit: \"Manager A approve lúc nào?\"\n  - Dashboard: Timeline phê duyệt\n"
           }
         },
-        "definitionStep": {
-          "type": "Association",
-          "displayName": {
-            "en": "Definition Step",
-            "vi": "Bước định nghĩa"
-          },
-          "description": {
-            "vi": "Nullable FK. Dùng để đọc config bước nếu cần."
-          },
-          "relation": "ManyToOne",
-          "target": "WorkflowDefinitionStep"
-        },
-        "instance": {
-          "type": "Association",
-          "displayName": {
-            "en": "Workflow Instance",
-            "vi": "Phiên bản quy trình"
-          },
-          "relation": "ManyToOne",
-          "target": "WorkflowInstance"
-        },
         "notified_at": {
           "type": "Timestamp",
           "displayName": {
@@ -810,9 +753,7 @@
         "comment",
         "decided_at",
         "deadline_at",
-        "notified_at",
-        "instance",
-        "definitionStep"
+        "notified_at"
       ],
       "tableName": "workflow_step_approvals"
     }

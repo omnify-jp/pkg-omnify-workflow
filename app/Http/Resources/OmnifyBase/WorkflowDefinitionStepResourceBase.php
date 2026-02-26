@@ -41,8 +41,6 @@ class WorkflowDefinitionStepResourceBase extends JsonResource
             'type' => $this->type,
             'deadline_hours' => $this->deadline_hours,
             'escalate_to_role' => $this->escalate_to_role,
-            'definition_id' => $this->definition_id,
-            'definition' => $this->whenLoaded('definition', fn() => new \Omnify\Workflow\Http\Resources\WorkflowDefinitionResource($this->definition)),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

@@ -35,8 +35,6 @@ use Omnify\Workflow\Models\Base\Locales\WorkflowStepApprovalLocales;
  * @property mixed|null $decided_at
  * @property mixed|null $deadline_at
  * @property mixed|null $notified_at
- * @property int $instance_id
- * @property int $definition_step_id
  */
 class WorkflowStepApprovalBaseModel extends BaseModel
 {
@@ -95,8 +93,6 @@ class WorkflowStepApprovalBaseModel extends BaseModel
         'decided_at',
         'deadline_at',
         'notified_at',
-        'instance_id',
-        'definition_step_id',
     ];
 
     /**
@@ -124,19 +120,4 @@ class WorkflowStepApprovalBaseModel extends BaseModel
         ];
     }
 
-    /**
-     * Get the instance that owns this model.
-     */
-    public function instance(): BelongsTo
-    {
-        return $this->belongsTo(\Omnify\Workflow\Models\WorkflowInstance::class, 'instance_id');
-    }
-
-    /**
-     * Get the definitionStep that owns this model.
-     */
-    public function definitionStep(): BelongsTo
-    {
-        return $this->belongsTo(\Omnify\Workflow\Models\WorkflowDefinitionStep::class, 'definition_step_id');
-    }
 }

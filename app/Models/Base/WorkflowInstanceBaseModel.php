@@ -34,7 +34,6 @@ use Omnify\Workflow\Models\Base\Locales\WorkflowInstanceLocales;
  * @property mixed|null $submitted_at
  * @property mixed|null $completed_at
  * @property array|null $metadata
- * @property int $definition_id
  */
 class WorkflowInstanceBaseModel extends BaseModel
 {
@@ -92,7 +91,6 @@ class WorkflowInstanceBaseModel extends BaseModel
         'submitted_at',
         'completed_at',
         'metadata',
-        'definition_id',
     ];
 
     /**
@@ -118,14 +116,6 @@ class WorkflowInstanceBaseModel extends BaseModel
             'completed_at' => 'datetime',
             'metadata' => 'array',
         ];
-    }
-
-    /**
-     * Get the definition that owns this model.
-     */
-    public function definition(): BelongsTo
-    {
-        return $this->belongsTo(\Omnify\Workflow\Models\WorkflowDefinition::class, 'definition_id');
     }
 
     /**
