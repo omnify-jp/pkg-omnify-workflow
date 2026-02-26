@@ -12,7 +12,7 @@ class WorkflowHistory extends Model
 {
     use HasUuids;
 
-    protected $table = 'workflow_history';
+    protected $table = 'workflow_histories';
 
     /**
      * Bảng này chỉ có created_at, không có updated_at.
