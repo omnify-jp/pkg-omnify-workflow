@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "omnify": "omnify"
+    "omnify": "omnify",
+    "types": "tsc --noEmit"
   },
   "devDependencies": {
     "@omnifyjp/omnify": "^1.1.7",
