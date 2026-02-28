@@ -27,18 +27,16 @@ class WorkflowStepApprovalFactory extends Factory
     public function definition(): array
     {
         return [
-            'workflow_instance_id' => (string) \Illuminate\Support\Str::uuid(),
-            'workflow_definition_step_id' => (string) \Illuminate\Support\Str::uuid(),
-            'step_order' => fake()->numberBetween(1, 100),
+            'workflow_instance_id' => WorkflowInstance::factory(),
+            'workflow_definition_step_id' => WorkflowDefinitionStep::factory(),
+            'step_order' => fake()->numberBetween(1, 10),
             'approver_id' => (string) \Illuminate\Support\Str::uuid(),
-            'approver_role' => fake()->sentence(),
-            'status' => fake()->words(3, true),
-            'comment' => fake()->paragraphs(3, true),
-            'decided_at' => fake()->dateTime(),
-            'deadline_at' => fake()->dateTime(),
-            'notified_at' => fake()->dateTime(),
-            'instance_id' => WorkflowInstance::query()->inRandomOrder()->first()?->id ?? WorkflowInstance::factory()->create()->id,
-            'definition_step_id' => WorkflowDefinitionStep::query()->inRandomOrder()->first()?->id ?? WorkflowDefinitionStep::factory()->create()->id,
+            'approver_role' => 'manager',
+            'status' => 'pending',
+            'comment' => null,
+            'decided_at' => null,
+            'deadline_at' => null,
+            'notified_at' => null,
         ];
     }
 }

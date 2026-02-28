@@ -37,7 +37,24 @@ class ParallelStepHandler implements StepHandlerInterface
         $definitionStepId = $step->exists ? $step->id : null;
         $deadlineAt = $step->calculateDeadlineAt();
 
-        // Resolve the list of users that must approve this parallel step
+        // Priority 1: If specific users are configured, use them directly
+        if (! empty($step->approver_user_ids)) {
+            foreach ($step->approver_user_ids as $userId) {
+                WorkflowStepApproval::create([
+                    'workflow_instance_id' => $instance->id,
+                    'workflow_definition_step_id' => $definitionStepId,
+                    'step_order' => $stepOrder,
+                    'approver_id' => $userId,
+                    'approver_role' => $step->approver_role,
+                    'status' => WorkflowStepApprovalStatus::Pending->value,
+                    'deadline_at' => $deadlineAt,
+                ]);
+            }
+
+            return;
+        }
+
+        // Priority 2: Resolve users by role
         $users = ($step->approver_role && $userResolver !== null)
             ? $userResolver($step->approver_role, $orgId)
             : collect();

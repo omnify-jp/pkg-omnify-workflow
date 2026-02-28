@@ -5,13 +5,20 @@ declare(strict_types=1);
 namespace Omnify\Workflow\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Omnify\Workflow\Database\Factories\WorkflowStepApprovalFactory;
 use Omnify\Workflow\Enums\WorkflowStepApprovalStatus;
 
 class WorkflowStepApproval extends Model
 {
-    use HasUuids;
+    use HasFactory, HasUuids;
+
+    protected static function newFactory(): WorkflowStepApprovalFactory
+    {
+        return WorkflowStepApprovalFactory::new();
+    }
 
     protected $table = 'workflow_step_approvals';
 

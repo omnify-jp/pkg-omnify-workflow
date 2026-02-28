@@ -118,13 +118,25 @@ properties:
     description:
       vi: |
         Slug của role được phép phê duyệt bước này.
-        Tham chiếu đến Role.slug trong pkg-omnify-laravel-sso.
+        Tham chiếu đến Role.slug trong pkg-omnify-laravel-core.
         KHÔNG có FK cứng để tránh coupling giữa packages.
 
         Ví dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'
 
         NULL = bất kỳ authenticated user nào cũng có thể approve
         (Rất hiếm dùng — chỉ cho workflows không cần kiểm soát chặt)
+
+  approver_user_ids:
+    type: Json
+    nullable: true
+    displayName:
+      en: Approver User IDs
+      vi: ID người phê duyệt cụ thể
+    description:
+      vi: |
+        Danh sách UUID của users cụ thể được phép phê duyệt bước này.
+        Dùng khi không muốn dùng role-based mà chỉ định trực tiếp người duyệt.
+        NULL = dùng approver_role để xác định người duyệt.
 
   type:
     type: String

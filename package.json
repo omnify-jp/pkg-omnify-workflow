@@ -8,9 +8,9 @@
     "types": "tsc --noEmit"
   },
   "devDependencies": {
-    "@omnifyjp/omnify": "^1.1.7",
-    "@omnifyjp/ui": "^2.3.3",
+    "@omnifyjp/omnify": "^1.1.10",
     "@types/node": "^22.0.0",
+    "antd": "^6.3.1",
     "typescript": "^5.7.0"
   }
 }

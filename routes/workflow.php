@@ -13,7 +13,7 @@ use Omnify\Workflow\Http\Controllers\WorkflowInstanceController;
 |   config('workflow.routes.enabled') = true
 |
 | Mặc định prefix: 'api/workflow' (thay đổi qua WORKFLOW_ROUTE_PREFIX)
-| Mặc định middleware: ['web', 'sso.auth'] (người dùng phải đăng nhập)
+| Mặc định middleware: ['web', 'core.auth'] (người dùng phải đăng nhập)
 |
 | URL Examples (với prefix mặc định):
 |   GET  /api/workflow/pending              → Việc cần duyệt của tôi

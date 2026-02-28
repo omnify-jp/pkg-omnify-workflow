@@ -30,6 +30,7 @@ use Omnify\Workflow\Models\Base\Locales\WorkflowDefinitionStepLocales;
  * @property string $name
  * @property string|null $description
  * @property string|null $approver_role
+ * @property array|null $approver_user_ids
  * @property string $type
  * @property int|null $deadline_hours
  * @property string|null $escalate_to_role
@@ -86,6 +87,7 @@ class WorkflowDefinitionStepBaseModel extends BaseModel
         'name',
         'description',
         'approver_role',
+        'approver_user_ids',
         'type',
         'deadline_hours',
         'escalate_to_role',
@@ -110,6 +112,7 @@ class WorkflowDefinitionStepBaseModel extends BaseModel
     {
         return [
             'step_order' => 'integer',
+            'approver_user_ids' => 'array',
             'deadline_hours' => 'integer',
         ];
     }

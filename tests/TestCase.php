@@ -27,6 +27,7 @@ abstract class TestCase extends OrchestraTestCase
     {
         return [
             WorkflowServiceProvider::class,
+            \Inertia\ServiceProvider::class,
         ];
     }
 
@@ -65,6 +66,17 @@ abstract class TestCase extends OrchestraTestCase
         $app['config']->set('workflow.routes.middleware', ['web']);
         $app['config']->set('workflow.routes.prefix', 'api/workflow');
         $app['config']->set('workflow.routes.enabled', true);
+
+        // Admin routes: dùng web + auth
+        $app['config']->set('workflow.admin.enabled', true);
+        $app['config']->set('workflow.admin.prefix', 'admin/workflow');
+        $app['config']->set('workflow.admin.middleware', ['web']);
+
+        // View paths: Inertia cần app.blade.php
+        $app['config']->set('view.paths', [__DIR__.'/Fixtures/views']);
+
+        // Disable Inertia page file existence check (pages live in package, not host app)
+        $app['config']->set('inertia.testing.ensure_pages_exist', false);
     }
 
     protected function defineDatabaseMigrations(): void

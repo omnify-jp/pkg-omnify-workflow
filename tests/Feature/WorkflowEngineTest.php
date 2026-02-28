@@ -524,6 +524,210 @@ it('parallel step rejects immediately if any member rejects', function () {
 });
 
 // ---------------------------------------------------------------------------
+// approver_user_ids — Specific user approvers
+// ---------------------------------------------------------------------------
+
+it('serial step with approver_user_ids creates N approval rows', function () {
+    $definition = WorkflowDefinition::factory()->create(['slug' => 'user-serial']);
+    $approver1 = createUser('staff');
+    $approver2 = createUser('staff');
+
+    WorkflowDefinitionStep::factory()->create([
+        'workflow_definition_id' => $definition->id,
+        'step_order' => 1,
+        'name' => 'Specific Users',
+        'approver_role' => null,
+        'approver_user_ids' => [$approver1->id, $approver2->id],
+        'type' => 'sequential',
+        'deadline_hours' => null,
+        'escalate_to_role' => null,
+    ]);
+
+    $submitter = createUser('staff');
+    $leaveRequest = FakeLeaveRequest::create(['title' => 'Test']);
+    $engine = app(WorkflowEngine::class);
+
+    $instance = $engine->start($leaveRequest, 'user-serial', $submitter);
+
+    $approvals = WorkflowStepApproval::where('workflow_instance_id', $instance->id)->get();
+    expect($approvals)->toHaveCount(2);
+
+    $ids = $approvals->pluck('approver_id')->toArray();
+    expect($ids)->toContain($approver1->id, $approver2->id);
+});
+
+it('serial step with approver_user_ids completes when any one approves', function () {
+    $definition = WorkflowDefinition::factory()->create(['slug' => 'user-serial']);
+    $approver1 = createUser('staff');
+    $approver2 = createUser('staff');
+
+    WorkflowDefinitionStep::factory()->create([
+        'workflow_definition_id' => $definition->id,
+        'step_order' => 1,
+        'name' => 'Any One User',
+        'approver_role' => null,
+        'approver_user_ids' => [$approver1->id, $approver2->id],
+        'type' => 'sequential',
+        'deadline_hours' => null,
+        'escalate_to_role' => null,
+    ]);
+
+    $submitter = createUser('staff');
+    $leaveRequest = FakeLeaveRequest::create(['title' => 'Test']);
+    $engine = app(WorkflowEngine::class);
+
+    $instance = $engine->start($leaveRequest, 'user-serial', $submitter);
+
+    // Approver1 approves → step completes (serial: any one is enough)
+    $engine->approve($instance, $approver1, 'OK');
+    $instance->refresh();
+
+    expect($instance->status)->toBe(WorkflowStatus::Approved);
+});
+
+it('parallel step with approver_user_ids uses explicit users instead of role resolution', function () {
+    $definition = WorkflowDefinition::factory()->create(['slug' => 'user-parallel']);
+    $approver1 = createUser('staff');
+    $approver2 = createUser('staff');
+    $approver3 = createUser('staff');
+
+    WorkflowDefinitionStep::factory()->create([
+        'workflow_definition_id' => $definition->id,
+        'step_order' => 1,
+        'name' => 'All Must Approve',
+        'approver_role' => null,
+        'approver_user_ids' => [$approver1->id, $approver2->id, $approver3->id],
+        'type' => 'parallel',
+        'deadline_hours' => null,
+        'escalate_to_role' => null,
+    ]);
+
+    $submitter = createUser('staff');
+    $leaveRequest = FakeLeaveRequest::create(['title' => 'Test']);
+    $engine = app(WorkflowEngine::class);
+
+    $instance = $engine->start($leaveRequest, 'user-parallel', $submitter);
+
+    $approvals = WorkflowStepApproval::where('workflow_instance_id', $instance->id)->get();
+    expect($approvals)->toHaveCount(3);
+
+    $ids = $approvals->pluck('approver_id')->toArray();
+    expect($ids)->toContain($approver1->id, $approver2->id, $approver3->id);
+});
+
+it('parallel step with approver_user_ids requires all users to approve', function () {
+    $definition = WorkflowDefinition::factory()->create(['slug' => 'user-parallel']);
+    $approver1 = createUser('staff');
+    $approver2 = createUser('staff');
+
+    WorkflowDefinitionStep::factory()->create([
+        'workflow_definition_id' => $definition->id,
+        'step_order' => 1,
+        'name' => 'Both Must Approve',
+        'approver_role' => null,
+        'approver_user_ids' => [$approver1->id, $approver2->id],
+        'type' => 'parallel',
+        'deadline_hours' => null,
+        'escalate_to_role' => null,
+    ]);
+
+    $submitter = createUser('staff');
+    $leaveRequest = FakeLeaveRequest::create(['title' => 'Test']);
+    $engine = app(WorkflowEngine::class);
+
+    $instance = $engine->start($leaveRequest, 'user-parallel', $submitter);
+
+    // Only approver1 approves → still pending
+    $engine->approve($instance, $approver1);
+    $instance->refresh();
+    expect($instance->status)->toBe(WorkflowStatus::Pending);
+
+    // Approver2 approves → now complete
+    $engine->approve($instance, $approver2);
+    $instance->refresh();
+    expect($instance->status)->toBe(WorkflowStatus::Approved);
+});
+
+it('two-step workflow with mixed role and user approvers works end-to-end', function () {
+    $definition = WorkflowDefinition::factory()->create(['slug' => 'mixed-flow']);
+    $specificUser = createUser('staff');
+
+    // Step 1: role-based (manager)
+    WorkflowDefinitionStep::factory()->create([
+        'workflow_definition_id' => $definition->id,
+        'step_order' => 1,
+        'name' => 'Manager Review',
+        'approver_role' => 'manager',
+        'approver_user_ids' => null,
+        'type' => 'sequential',
+        'deadline_hours' => null,
+        'escalate_to_role' => null,
+    ]);
+
+    // Step 2: user-based
+    WorkflowDefinitionStep::factory()->create([
+        'workflow_definition_id' => $definition->id,
+        'step_order' => 2,
+        'name' => 'Director Sign-off',
+        'approver_role' => null,
+        'approver_user_ids' => [$specificUser->id],
+        'type' => 'sequential',
+        'deadline_hours' => null,
+        'escalate_to_role' => null,
+    ]);
+
+    $manager = createUser('manager');
+    $submitter = createUser('staff');
+    $leaveRequest = FakeLeaveRequest::create(['title' => 'Test']);
+    $engine = app(WorkflowEngine::class);
+
+    $instance = $engine->start($leaveRequest, 'mixed-flow', $submitter);
+    expect($instance->current_step)->toBe(1);
+
+    // Step 1: role-based approval
+    $engine->approve($instance, $manager, 'OK');
+    $instance->refresh();
+    expect($instance->current_step)->toBe(2);
+    expect($instance->status)->toBe(WorkflowStatus::Pending);
+
+    // Step 2: specific user approval
+    $engine->approve($instance, $specificUser, 'Approved');
+    $instance->refresh();
+    expect($instance->status)->toBe(WorkflowStatus::Approved);
+});
+
+it('step with null approver_user_ids falls back to role-based behavior', function () {
+    $definition = WorkflowDefinition::factory()->create(['slug' => 'fallback-flow']);
+    WorkflowDefinitionStep::factory()->create([
+        'workflow_definition_id' => $definition->id,
+        'step_order' => 1,
+        'name' => 'Manager Step',
+        'approver_role' => 'manager',
+        'approver_user_ids' => null,
+        'type' => 'sequential',
+        'deadline_hours' => null,
+        'escalate_to_role' => null,
+    ]);
+
+    $manager = createUser('manager');
+    $submitter = createUser('staff');
+    $leaveRequest = FakeLeaveRequest::create(['title' => 'Test']);
+    $engine = app(WorkflowEngine::class);
+
+    $instance = $engine->start($leaveRequest, 'fallback-flow', $submitter);
+
+    // Should create single row with null approver_id (role-based)
+    $approval = WorkflowStepApproval::where('workflow_instance_id', $instance->id)->first();
+    expect($approval->approver_id)->toBeNull();
+    expect($approval->approver_role)->toBe('manager');
+
+    // Any manager can approve
+    $engine->approve($instance, $manager);
+    $instance->refresh();
+    expect($instance->status)->toBe(WorkflowStatus::Approved);
+});
+
+// ---------------------------------------------------------------------------
 // SLA / Escalation
 // ---------------------------------------------------------------------------
 

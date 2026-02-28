@@ -6,9 +6,10 @@ namespace Omnify\Workflow\Tests\Integration;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Omnify\SsoClient\Models\Role;
-use Omnify\SsoClient\Models\User;
-use Omnify\SsoClient\SsoClientServiceProvider;
+use Illuminate\Support\Facades\Schema;
+use Omnify\Core\Models\Role;
+use Omnify\Core\Models\User;
+use Omnify\Core\CoreServiceProvider;
 use Omnify\Workflow\Tests\Fixtures\Models\FakeLeaveRequest;
 use Omnify\Workflow\WorkflowServiceProvider;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
@@ -22,7 +23,7 @@ use Orchestra\Testbench\TestCase as OrchestraTestCase;
  *
  * Khác với TestCase cơ bản:
  *   - KHÔNG override WorkflowEngine singleton — dùng default resolver từ WorkflowServiceProvider
- *   - Load SsoClientServiceProvider để register User model + roles relationship
+ *   - Load CoreServiceProvider để register User model + roles relationship
  *   - Dùng real SSO User với roles() BelongsToMany qua pivot `role_user`
  *   - Config `omnify-auth.user_model` = User::class (SSO User)
  *
@@ -33,11 +34,21 @@ abstract class SsoIntegrationTestCase extends OrchestraTestCase
 {
     use RefreshDatabase;
 
+    protected function tearDown(): void
+    {
+        // MySQL: disable FK checks trước khi rollback migrations để tránh
+        // "Cannot drop table referenced by FK constraint" khi custom migration
+        // down() recreate tables với FK references
+        Schema::disableForeignKeyConstraints();
+
+        parent::tearDown();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        // SsoClient's BaseModel::boot() gọi Relation::enforceMorphMap() với danh sách SSO models.
+        // Core's BaseModel::boot() gọi Relation::enforceMorphMap() với danh sách SSO models.
         // FakeLeaveRequest không có trong SSO's modelMap → ClassMorphViolationException.
         // Giải pháp: thêm FakeLeaveRequest vào morph map SAU khi setUp() chạy xong.
         // morphMap($map, merge=true) sẽ giữ lại FakeLeaveRequest kể cả khi BaseModel::boot() chạy sau.
@@ -49,7 +60,7 @@ abstract class SsoIntegrationTestCase extends OrchestraTestCase
     protected function getPackageProviders($app): array
     {
         return [
-            SsoClientServiceProvider::class,
+            CoreServiceProvider::class,
             WorkflowServiceProvider::class,
         ];
     }
@@ -102,10 +113,13 @@ abstract class SsoIntegrationTestCase extends OrchestraTestCase
 
     protected function defineDatabaseMigrations(): void
     {
-        // SSO migrations: users, roles, permissions, role_user, role_permissions, v.v.
-        // Lấy đường dẫn từ SsoClientServiceProvider để hoạt động đúng ở cả local & vendor
-        $ssoProviderDir = dirname((new \ReflectionClass(SsoClientServiceProvider::class))->getFileName());
+        // Core migrations: users, roles, permissions, role_user_pivot, role_permissions, v.v.
+        // Lấy đường dẫn từ CoreServiceProvider để hoạt động đúng ở cả local & vendor
+        $ssoProviderDir = dirname((new \ReflectionClass(CoreServiceProvider::class))->getFileName());
         $this->loadMigrationsFrom($ssoProviderDir.'/../database/migrations/omnify');
+
+        // Custom core migrations (scoped RBAC, admins, etc.)
+        $this->loadMigrationsFrom($ssoProviderDir.'/../database/migrations');
 
         // Workflow migrations: workflow_definitions, workflow_instances, v.v.
         $this->loadMigrationsFrom(__DIR__.'/../../database/migrations');
@@ -113,6 +127,7 @@ abstract class SsoIntegrationTestCase extends OrchestraTestCase
         // Fixture: fake_leave_requests (model workflowable dùng trong tests)
         // fake_users table cũng được tạo nhưng không dùng trong integration tests
         $this->loadMigrationsFrom(__DIR__.'/../Fixtures/database/migrations');
+
     }
 
     /**

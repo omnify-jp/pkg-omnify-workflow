@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "timestamp": "2026-02-25T10:02:50Z",
+  "timestamp": "2026-02-28T03:37:15Z",
   "connections": {
     "default": "mysql"
   },
@@ -98,21 +98,21 @@
         "approver_role": {
           "type": "String",
           "displayName": "Approver Role",
-          "description": "Slug của role được phép phê duyệt bước này.\nTham chiếu đến Role.slug trong pkg-omnify-laravel-sso.\nKHÔNG có FK cứng để tránh coupling giữa packages.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nNULL = bất kỳ authenticated user nào cũng có thể approve\n(Rất hiếm dùng — chỉ cho workflows không cần kiểm soát chặt)\n",
+          "description": "Slug của role được phép phê duyệt bước này.\nTham chiếu đến Role.slug trong pkg-omnify-laravel-core.\nKHÔNG có FK cứng để tránh coupling giữa packages.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nNULL = bất kỳ authenticated user nào cũng có thể approve\n(Rất hiếm dùng — chỉ cho workflows không cần kiểm soát chặt)\n",
           "nullable": true,
           "length": 100
+        },
+        "approver_user_ids": {
+          "type": "Json",
+          "displayName": "Approver User IDs",
+          "description": "Danh sách UUID của users cụ thể được phép phê duyệt bước này.\nDùng khi không muốn dùng role-based mà chỉ định trực tiếp người duyệt.\nNULL = dùng approver_role để xác định người duyệt.\n",
+          "nullable": true
         },
         "deadline_hours": {
           "type": "Int",
           "displayName": "Deadline Hours",
           "description": "Số giờ để hoàn thành bước tính từ khi bước được kích hoạt.\n\nNULL = không có deadline, chờ vô thời hạn\n\nVí dụ:\n  8   = phải duyệt trong 8 giờ (1 ngày làm việc)\n  24  = phải duyệt trong 24 giờ\n  48  = phải duyệt trong 2 ngày\n  72  = phải duyệt trong 3 ngày\n\nCơ chế:\n  1. Khi tạo WorkflowStepApproval → tính deadline_at = now() + deadline_hours\n  2. php artisan workflow:escalate-expired chạy định kỳ (khuyến khích hourly)\n  3. Khi deadline_at \u003c now() → escalate (xem escalate_to_role)\n",
           "nullable": true
-        },
-        "definition": {
-          "type": "Association",
-          "displayName": "Workflow Definition",
-          "relation": "ManyToOne",
-          "target": "WorkflowDefinition"
         },
         "description": {
           "type": "Text",
@@ -202,13 +202,6 @@
           "nullable": true,
           "length": 20
         },
-        "instance": {
-          "type": "Association",
-          "displayName": "Workflow Instance",
-          "description": "FK → workflow_instances (cascade delete).",
-          "relation": "ManyToOne",
-          "target": "WorkflowInstance"
-        },
         "metadata": {
           "type": "Json",
           "displayName": "Metadata",
@@ -270,13 +263,6 @@
           "displayName": "Current Step",
           "description": "Số thứ tự bước đang được xử lý.\n\nBắt đầu từ 1 (step_order đầu tiên của definition).\nSau khi 1 step hoàn thành → current_step tăng lên step tiếp theo.\nKhi current_step vượt qua số step cuối → workflow completed (status = approved).\n\nVí dụ với workflow 3 bước:\n  Vừa start:       current_step = 1 (kế toán kiểm tra)\n  Kế toán approve: current_step = 2 (quản lý duyệt)\n  Quản lý approve: current_step = 3 (HĐQT phê duyệt)\n  HĐQT approve:    current_step = 4 → vượt max_step → approved!\n\nDùng để query approval rows:\n  SELECT * FROM workflow_step_approvals\n  WHERE workflow_instance_id = ? AND step_order = ?\n\nLưu ý: Với parallel steps, current_step không tăng cho đến khi TẤT CẢ approvals\ncủa step đó đều approved.\n",
           "default": 1
-        },
-        "definition": {
-          "type": "Association",
-          "displayName": "Workflow Definition",
-          "description": "FK → workflow_definitions. Nullable (nullOnDelete).",
-          "relation": "ManyToOne",
-          "target": "WorkflowDefinition"
         },
         "history": {
           "type": "Association",
@@ -375,7 +361,7 @@
         "approver_role": {
           "type": "String",
           "displayName": "Approver Role",
-          "description": "Role slug được phép approve row này (denormalized từ definition step).\n\nDenormalize để:\n  1. Validate quyền nhanh khi approve() (không cần JOIN với definitions)\n  2. Hiển thị \"Yêu cầu role: Manager\" trong UI\n  3. Sau khi escalate, row mới có escalate_to_role ở đây\n\nNULL = bất kỳ authenticated user nào cũng có thể approve.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nTham chiếu đến Role.slug trong pkg-omnify-laravel-sso.\nKhông FK cứng để tránh coupling giữa packages.\n",
+          "description": "Role slug được phép approve row này (denormalized từ definition step).\n\nDenormalize để:\n  1. Validate quyền nhanh khi approve() (không cần JOIN với definitions)\n  2. Hiển thị \"Yêu cầu role: Manager\" trong UI\n  3. Sau khi escalate, row mới có escalate_to_role ở đây\n\nNULL = bất kỳ authenticated user nào cũng có thể approve.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nTham chiếu đến Role.slug trong pkg-omnify-laravel-core.\nKhông FK cứng để tránh coupling giữa packages.\n",
           "nullable": true,
           "length": 100
         },
@@ -396,19 +382,6 @@
           "displayName": "Decided At",
           "description": "Thời điểm approver đưa ra quyết định (approve, reject, hoặc delegate).\n\nNULL nếu chưa có quyết định (status = pending hoặc expired).\nSet khi: approve(), reject(), delegate() được gọi.\n\nDùng để:\n  - Tính thời gian xử lý từng bước: decided_at - created_at\n  - Audit: \"Manager A approve lúc nào?\"\n  - Dashboard: Timeline phê duyệt\n",
           "nullable": true
-        },
-        "definitionStep": {
-          "type": "Association",
-          "displayName": "Definition Step",
-          "description": "Nullable FK. Dùng để đọc config bước nếu cần.",
-          "relation": "ManyToOne",
-          "target": "WorkflowDefinitionStep"
-        },
-        "instance": {
-          "type": "Association",
-          "displayName": "Workflow Instance",
-          "relation": "ManyToOne",
-          "target": "WorkflowInstance"
         },
         "notified_at": {
           "type": "Timestamp",
@@ -469,10 +442,10 @@
     }
   },
   "migrationTimestamps": {
-    "workflow_definition_steps": "2026_02_25_190251",
-    "workflow_definitions": "2026_02_25_190250",
-    "workflow_histories": "2026_02_25_190253",
-    "workflow_instances": "2026_02_25_190252",
-    "workflow_step_approvals": "2026_02_25_190254"
+    "workflow_definition_steps": "2026_02_28_123716",
+    "workflow_definitions": "2026_02_28_123715",
+    "workflow_histories": "2026_02_28_123717",
+    "workflow_instances": "2026_02_28_123718",
+    "workflow_step_approvals": "2026_02_28_123719"
   }
 }

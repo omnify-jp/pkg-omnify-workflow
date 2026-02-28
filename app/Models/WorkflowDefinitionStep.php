@@ -29,6 +29,7 @@ class WorkflowDefinitionStep extends Model
         'name',
         'description',
         'approver_role',
+        'approver_user_ids',
         'type',
         'deadline_hours',
         'escalate_to_role',
@@ -40,6 +41,7 @@ class WorkflowDefinitionStep extends Model
             'step_order' => 'integer',
             'type' => WorkflowStepType::class,
             'deadline_hours' => 'integer',
+            'approver_user_ids' => 'array',
         ];
     }
 
@@ -83,6 +85,7 @@ class WorkflowDefinitionStep extends Model
             'name' => $config['name'] ?? "Step {$stepOrder}",
             'description' => $config['description'] ?? null,
             'approver_role' => $config['approver_role'] ?? null,
+            'approver_user_ids' => $config['approver_user_ids'] ?? null,
             'type' => $config['type'] ?? WorkflowStepType::Sequential->value,
             'deadline_hours' => $config['deadline_hours'] ?? null,
             'escalate_to_role' => $config['escalate_to_role'] ?? null,

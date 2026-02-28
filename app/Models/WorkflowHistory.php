@@ -5,12 +5,19 @@ declare(strict_types=1);
 namespace Omnify\Workflow\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Omnify\Workflow\Database\Factories\WorkflowHistoryFactory;
 
 class WorkflowHistory extends Model
 {
-    use HasUuids;
+    use HasFactory, HasUuids;
+
+    protected static function newFactory(): WorkflowHistoryFactory
+    {
+        return WorkflowHistoryFactory::new();
+    }
 
     protected $table = 'workflow_histories';
 

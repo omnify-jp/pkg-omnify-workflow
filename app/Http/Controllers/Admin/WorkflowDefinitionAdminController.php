@@ -8,12 +8,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 use Omnify\Workflow\Http\Requests\StoreWorkflowDefinitionRequest;
 use Omnify\Workflow\Http\Requests\UpdateWorkflowDefinitionRequest;
-use Omnify\SsoClient\Models\Role;
-use Omnify\SsoClient\Models\User;
+use Omnify\Core\Models\Role;
+use Omnify\Core\Models\User;
 use Omnify\Workflow\Models\WorkflowDefinition;
 use Omnify\Workflow\Models\WorkflowDefinitionStep;
 
@@ -52,13 +53,13 @@ class WorkflowDefinitionAdminController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $roles = class_exists(Role::class)
+        $roles = class_exists(Role::class) && Schema::hasTable((new Role)->getTable())
             ? Role::select('id', 'slug', 'name', 'description', 'level')
                 ->orderBy('level', 'desc')
                 ->get()
             : collect();
 
-        $users = class_exists(User::class)
+        $users = class_exists(User::class) && Schema::hasTable((new User)->getTable())
             ? User::select('id', 'name', 'email')->orderBy('name')->get()
             : collect();
 

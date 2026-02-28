@@ -26,15 +26,15 @@ class WorkflowHistoryFactory extends Factory
     public function definition(): array
     {
         return [
-            'workflow_instance_id' => (string) \Illuminate\Support\Str::uuid(),
+            'workflow_instance_id' => WorkflowInstance::factory(),
             'actor_id' => (string) \Illuminate\Support\Str::uuid(),
-            'action' => fake()->words(3, true),
-            'from_status' => fake()->words(3, true),
-            'to_status' => fake()->words(3, true),
-            'step_order' => fake()->numberBetween(1, 100),
-            'comment' => fake()->paragraphs(3, true),
+            'action' => 'submitted',
+            'from_status' => null,
+            'to_status' => 'pending',
+            'step_order' => null,
+            'comment' => null,
             'metadata' => [],
-            'instance_id' => WorkflowInstance::query()->inRandomOrder()->first()?->id ?? WorkflowInstance::factory()->create()->id,
+            'created_at' => now(),
         ];
     }
 }

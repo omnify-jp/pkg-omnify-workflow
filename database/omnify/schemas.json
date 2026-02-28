@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-25T23:25:07Z",
+  "generatedAt": "2026-02-28T03:37:15Z",
   "database": {
     "driver": "mysql"
   },
@@ -187,9 +187,20 @@
           },
           "nullable": true,
           "description": {
-            "vi": "Slug của role được phép phê duyệt bước này.\nTham chiếu đến Role.slug trong pkg-omnify-laravel-sso.\nKHÔNG có FK cứng để tránh coupling giữa packages.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nNULL = bất kỳ authenticated user nào cũng có thể approve\n(Rất hiếm dùng — chỉ cho workflows không cần kiểm soát chặt)\n"
+            "vi": "Slug của role được phép phê duyệt bước này.\nTham chiếu đến Role.slug trong pkg-omnify-laravel-core.\nKHÔNG có FK cứng để tránh coupling giữa packages.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nNULL = bất kỳ authenticated user nào cũng có thể approve\n(Rất hiếm dùng — chỉ cho workflows không cần kiểm soát chặt)\n"
           },
           "length": 100
+        },
+        "approver_user_ids": {
+          "type": "Json",
+          "displayName": {
+            "en": "Approver User IDs",
+            "vi": "ID người phê duyệt cụ thể"
+          },
+          "nullable": true,
+          "description": {
+            "vi": "Danh sách UUID của users cụ thể được phép phê duyệt bước này.\nDùng khi không muốn dùng role-based mà chỉ định trực tiếp người duyệt.\nNULL = dùng approver_role để xác định người duyệt.\n"
+          }
         },
         "deadline_hours": {
           "type": "Int",
@@ -273,6 +284,7 @@
         "name",
         "description",
         "approver_role",
+        "approver_user_ids",
         "type",
         "deadline_hours",
         "escalate_to_role"
@@ -651,7 +663,7 @@
           },
           "nullable": true,
           "description": {
-            "vi": "Role slug được phép approve row này (denormalized từ definition step).\n\nDenormalize để:\n  1. Validate quyền nhanh khi approve() (không cần JOIN với definitions)\n  2. Hiển thị \"Yêu cầu role: Manager\" trong UI\n  3. Sau khi escalate, row mới có escalate_to_role ở đây\n\nNULL = bất kỳ authenticated user nào cũng có thể approve.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nTham chiếu đến Role.slug trong pkg-omnify-laravel-sso.\nKhông FK cứng để tránh coupling giữa packages.\n"
+            "vi": "Role slug được phép approve row này (denormalized từ definition step).\n\nDenormalize để:\n  1. Validate quyền nhanh khi approve() (không cần JOIN với definitions)\n  2. Hiển thị \"Yêu cầu role: Manager\" trong UI\n  3. Sau khi escalate, row mới có escalate_to_role ở đây\n\nNULL = bất kỳ authenticated user nào cũng có thể approve.\n\nVí dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'\n\nTham chiếu đến Role.slug trong pkg-omnify-laravel-core.\nKhông FK cứng để tránh coupling giữa packages.\n"
           },
           "length": 100
         },

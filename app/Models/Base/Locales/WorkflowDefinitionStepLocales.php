@@ -48,6 +48,10 @@ class WorkflowDefinitionStepLocales
             'en' => 'Approver Role',
             'vi' => 'Vai trò phê duyệt',
         ],
+        'approver_user_ids' => [
+            'en' => 'Approver User IDs',
+            'vi' => 'ID người phê duyệt cụ thể',
+        ],
         'type' => [
             'en' => 'Approval Type',
             'vi' => 'Kiểu phê duyệt',

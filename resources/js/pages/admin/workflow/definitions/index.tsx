@@ -6,7 +6,7 @@ import { Ellipsis, Minus, Plus, PlusCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
-import { PageContainer } from '@omnify-sso/components/page-container';
+import { PageContainer } from '@omnify-core/components/page-container';
 import {
     buildFilterParams,
     FilterAdvancedButton,
@@ -14,7 +14,7 @@ import {
     FilterDrawer,
     Filters,
     FilterSearch,
-} from '@omnify-sso/components/filters';
+} from '@omnify-core/components/filters';
 import { workflowService } from '@omnify-workflow/services/workflow';
 import type {
     DefinitionFormData,

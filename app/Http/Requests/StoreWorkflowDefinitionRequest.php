@@ -34,6 +34,8 @@ class StoreWorkflowDefinitionRequest extends FormRequest
             'steps' => ['required', 'array', 'min:1'],
             'steps.*.name' => ['required', 'string', 'max:200'],
             'steps.*.approver_role' => ['nullable', 'string', 'max:100'],
+            'steps.*.approver_user_ids' => ['nullable', 'array'],
+            'steps.*.approver_user_ids.*' => ['uuid'],
             'steps.*.type' => ['required', 'string', Rule::in(['sequential', 'any_of', 'parallel'])],
             'steps.*.deadline_hours' => ['nullable', 'integer', 'min:1', 'max:9999'],
             'steps.*.escalate_to_role' => ['nullable', 'string', 'max:100'],

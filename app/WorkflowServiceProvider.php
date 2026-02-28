@@ -25,6 +25,7 @@ class WorkflowServiceProvider extends ServiceProvider
     {
         $this->registerMigrations();
         $this->registerRoutes();
+        $this->registerAdminRoutes();
         $this->registerPublishing();
         $this->commands([
             EscalateExpiredWorkflowsCommand::class,
@@ -52,10 +53,10 @@ class WorkflowServiceProvider extends ServiceProvider
      *   Nhận role slug và org ID, trả về danh sách users có role đó trong org.
      *   Dùng cho parallel steps (tạo 1 approval row per user).
      *
-     * Coupling với SsoClient:
+     * Coupling với Core:
      *   WorkflowEngine không import User model trực tiếp.
      *   Thay vào đó, ServiceProvider inject closure này để resolve users.
-     *   Nếu host app không dùng SsoClient, có thể override bằng cách rebind:
+     *   Nếu host app không dùng Core, có thể override bằng cách rebind:
      *
      *   app()->singleton(WorkflowEngine::class, fn() => new WorkflowEngine(
      *       userResolver: fn($role, $orgId) => MyUser::whereRole($role)->get()
@@ -66,7 +67,7 @@ class WorkflowServiceProvider extends ServiceProvider
         $this->app->singleton(WorkflowEngine::class, function () {
             return new WorkflowEngine(
                 userResolver: function (string $role, ?string $orgId) {
-                    // Resolve users via SsoClient's User model (if available)
+                    // Resolve users via Core's User model (if available)
                     // This uses the application's User model (configured in omnify-auth.user_model)
                     $userModelClass = config('omnify-auth.user_model', \App\Models\User::class);
 
@@ -107,9 +108,23 @@ class WorkflowServiceProvider extends ServiceProvider
             return;
         }
 
-        Route::middleware(config('workflow.routes.middleware', ['web', 'sso.auth']))
+        Route::middleware(config('workflow.routes.middleware', ['web', 'core.auth']))
             ->prefix(config('workflow.routes.prefix', 'api/workflow'))
             ->group(__DIR__.'/../routes/workflow.php');
+    }
+
+    /**
+     * Mount admin routes (Inertia pages + JSON API) nếu được bật trong config.
+     */
+    private function registerAdminRoutes(): void
+    {
+        if (! config('workflow.admin.enabled', true)) {
+            return;
+        }
+
+        Route::middleware(config('workflow.admin.middleware', ['web', 'auth']))
+            ->prefix(config('workflow.admin.prefix', 'admin/workflow'))
+            ->group(__DIR__.'/../routes/admin.php');
     }
 
     /**

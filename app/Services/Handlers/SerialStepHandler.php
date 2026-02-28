@@ -33,9 +33,29 @@ class SerialStepHandler implements StepHandlerInterface
         ?Closure $userResolver = null,
     ): void {
         $stepOrder = $step->step_order;
+        $definitionStepId = $step->exists ? $step->id : null;
+        $deadlineAt = $step->calculateDeadlineAt();
+
+        // If specific users are configured, create one approval row per user
+        if (! empty($step->approver_user_ids)) {
+            foreach ($step->approver_user_ids as $userId) {
+                WorkflowStepApproval::create([
+                    'workflow_instance_id' => $instance->id,
+                    'workflow_definition_step_id' => $definitionStepId,
+                    'step_order' => $stepOrder,
+                    'approver_id' => $userId,
+                    'approver_role' => $step->approver_role,
+                    'status' => WorkflowStepApprovalStatus::Pending->value,
+                    'deadline_at' => $deadlineAt,
+                ]);
+            }
+
+            return;
+        }
+
+        // Fallback: role-based — single row, any user with the role may claim
         $overrideKey = "step_{$stepOrder}";
         $specificApproverId = $approverOverrides[$overrideKey] ?? null;
-        $definitionStepId = $step->exists ? $step->id : null;
 
         WorkflowStepApproval::create([
             'workflow_instance_id' => $instance->id,
@@ -44,27 +64,36 @@ class SerialStepHandler implements StepHandlerInterface
             'approver_id' => $specificApproverId,
             'approver_role' => $step->approver_role,
             'status' => WorkflowStepApprovalStatus::Pending->value,
-            'deadline_at' => $step->calculateDeadlineAt(),
+            'deadline_at' => $deadlineAt,
         ]);
     }
 
     /**
      * Check whether the current step is complete.
      *
-     * Complete when at least one approval row is Approved and no rows remain Pending.
+     * For serial/any_of: complete when at least one row is Approved.
+     * Remaining pending rows are cancelled automatically.
      */
     public function isComplete(WorkflowInstance $instance): bool
     {
-        $pendingCount = WorkflowStepApproval::where('workflow_instance_id', $instance->id)
-            ->where('step_order', $instance->current_step)
-            ->where('status', WorkflowStepApprovalStatus::Pending->value)
-            ->count();
-
         $approvedCount = WorkflowStepApproval::where('workflow_instance_id', $instance->id)
             ->where('step_order', $instance->current_step)
             ->where('status', WorkflowStepApprovalStatus::Approved->value)
             ->count();
 
-        return $approvedCount > 0 && $pendingCount === 0;
+        if ($approvedCount === 0) {
+            return false;
+        }
+
+        // Cancel remaining pending rows (for multi-user serial steps)
+        WorkflowStepApproval::where('workflow_instance_id', $instance->id)
+            ->where('step_order', $instance->current_step)
+            ->where('status', WorkflowStepApprovalStatus::Pending->value)
+            ->update([
+                'status' => WorkflowStepApprovalStatus::Expired->value,
+                'decided_at' => now(),
+            ]);
+
+        return true;
     }
 }

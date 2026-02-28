@@ -4,8 +4,8 @@
  * Workflow Package Tests Configuration
  */
 
-use Omnify\SsoClient\Models\Role;
-use Omnify\SsoClient\Models\User;
+use Omnify\Core\Models\Role;
+use Omnify\Core\Models\User;
 use Omnify\Workflow\Tests\Fixtures\Models\FakeUser;
 use Omnify\Workflow\Tests\Integration\SsoIntegrationTestCase;
 use Omnify\Workflow\Tests\TestCase;

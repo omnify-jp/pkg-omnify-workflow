@@ -31,12 +31,13 @@ return new class extends Migration
             $table->string('name', 200)->comment('Step Name');
             $table->text('description')->nullable()->comment('Description');
             $table->string('approver_role', 100)->nullable()->comment('Approver Role');
+            $table->json('approver_user_ids')->nullable()->comment('Approver User IDs');
             $table->string('type', 20)->default('sequential')->comment('Approval Type');
             $table->integer('deadline_hours')->nullable()->comment('Deadline Hours');
             $table->string('escalate_to_role', 100)->nullable()->comment('Escalate To Role');
             $table->timestamp('created_at')->nullable();
             $table->timestamp('updated_at')->nullable();
-            $table->unique(['workflow_definition_id', 'step_order']);
+            $table->unique(['workflow_definition_id', 'step_order'], 'workflow_definition_steps_5be23bae_unique');
         });
     }
 

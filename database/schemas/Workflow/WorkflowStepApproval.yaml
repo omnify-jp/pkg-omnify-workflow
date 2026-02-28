@@ -181,7 +181,7 @@ properties:
 
         Ví dụ: 'manager', 'admin', 'accountant', 'ceo', 'board_member'
 
-        Tham chiếu đến Role.slug trong pkg-omnify-laravel-sso.
+        Tham chiếu đến Role.slug trong pkg-omnify-laravel-core.
         Không FK cứng để tránh coupling giữa packages.
 
   # ---------------------------------------------------------------------------

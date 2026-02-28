@@ -38,6 +38,7 @@ class WorkflowDefinitionStepResourceBase extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'approver_role' => $this->approver_role,
+            'approver_user_ids' => $this->approver_user_ids,
             'type' => $this->type,
             'deadline_hours' => $this->deadline_hours,
             'escalate_to_role' => $this->escalate_to_role,

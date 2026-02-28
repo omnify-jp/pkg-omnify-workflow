@@ -89,7 +89,31 @@ return [
     'routes' => [
         'enabled' => env('WORKFLOW_ROUTES_ENABLED', true),
         'prefix' => env('WORKFLOW_ROUTE_PREFIX', 'api/workflow'),
-        'middleware' => ['web', 'sso.auth'],
+        'middleware' => ['web', 'core.auth'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Panel
+    |--------------------------------------------------------------------------
+    |
+    | Cấu hình admin pages cho quản lý workflow definitions & instances.
+    | Admin routes render Inertia pages + JSON API cho CRUD operations.
+    |
+    | Routes được mount:
+    |   GET    /{prefix}/definitions           → Danh sách definitions
+    |   POST   /{prefix}/definitions           → Tạo definition
+    |   PUT    /{prefix}/definitions/{id}      → Update definition
+    |   DELETE /{prefix}/definitions/{id}      → Xóa definition
+    |   GET    /{prefix}/instances             → Danh sách instances
+    |   GET    /{prefix}/instances/{id}        → Chi tiết instance
+    |
+    */
+    'admin' => [
+        'enabled' => env('WORKFLOW_ADMIN_ENABLED', true),
+        'prefix' => env('WORKFLOW_ADMIN_PREFIX', 'admin/workflow'),
+        'middleware' => ['web', 'auth'],
+        'pages_path' => 'admin/workflow',
     ],
 
     /*
