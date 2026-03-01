@@ -27,6 +27,10 @@ use Omnify\Workflow\Http\Controllers\Admin\WorkflowInstanceAdminController;
 |
 */
 
+// Overview
+Route::get('/', [WorkflowDefinitionAdminController::class, 'overview'])
+    ->name('workflow.admin.overview');
+
 // Definitions — CRUD
 Route::get('/definitions', [WorkflowDefinitionAdminController::class, 'index'])
     ->name('workflow.admin.definitions.index');

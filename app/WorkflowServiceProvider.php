@@ -27,6 +27,7 @@ class WorkflowServiceProvider extends ServiceProvider
         $this->registerRoutes();
         $this->registerAdminRoutes();
         $this->registerPublishing();
+        $this->registerOrgSettingsSection();
         $this->commands([
             EscalateExpiredWorkflowsCommand::class,
         ]);
@@ -122,9 +123,49 @@ class WorkflowServiceProvider extends ServiceProvider
             return;
         }
 
-        Route::middleware(config('workflow.admin.middleware', ['web', 'auth']))
-            ->prefix(config('workflow.admin.prefix', 'admin/workflow'))
-            ->group(__DIR__.'/../routes/admin.php');
+        $register = function () {
+            Route::middleware(config('workflow.admin.middleware', ['web', 'auth']))
+                ->prefix(config('workflow.admin.prefix', 'settings/workflow'))
+                ->group(__DIR__.'/../routes/admin.php');
+        };
+
+        // Wrap under org URL prefix if configured (e.g. /@{organization}/settings/workflow)
+        $orgPrefix = config('omnify-auth.routes.org_route_prefix', '');
+
+        if ($orgPrefix !== '') {
+            Route::prefix($orgPrefix)
+                ->middleware(['core.org.url'])
+                ->group($register);
+        } else {
+            $register();
+        }
+    }
+
+    /**
+     * Register workflow section in Core's org settings hub.
+     */
+    private function registerOrgSettingsSection(): void
+    {
+        if (! config('workflow.admin.enabled', true)) {
+            return;
+        }
+
+        $sections = config('omnify-auth.org_settings.extra_sections', []);
+        $sections[] = [
+            'key' => 'workflow',
+            'icon' => 'git-pull-request',
+            'title_key' => 'workflow.title',
+            'title_default' => 'Workflow',
+            'description_key' => 'workflow.subtitle',
+            'description_default' => 'Manage approval workflows and definitions.',
+            'path_suffix' => config('workflow.admin.prefix', 'settings/workflow'),
+            'tabs' => [
+                ['suffix' => '', 'label_key' => 'orgSettings.tabs.overview', 'label_default' => 'Overview'],
+                ['suffix' => '/definitions', 'label_key' => 'orgSettings.tabs.definitions', 'label_default' => 'Definitions'],
+                ['suffix' => '/instances', 'label_key' => 'orgSettings.tabs.instances', 'label_default' => 'Instances'],
+            ],
+        ];
+        config(['omnify-auth.org_settings.extra_sections' => $sections]);
     }
 
     /**

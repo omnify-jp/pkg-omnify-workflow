@@ -69,7 +69,7 @@ abstract class TestCase extends OrchestraTestCase
 
         // Admin routes: dùng web + auth
         $app['config']->set('workflow.admin.enabled', true);
-        $app['config']->set('workflow.admin.prefix', 'admin/workflow');
+        $app['config']->set('workflow.admin.prefix', 'settings/workflow');
         $app['config']->set('workflow.admin.middleware', ['web']);
 
         // View paths: Inertia cần app.blade.php

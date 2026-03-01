@@ -11,18 +11,48 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
-use Omnify\Workflow\Http\Requests\StoreWorkflowDefinitionRequest;
-use Omnify\Workflow\Http\Requests\UpdateWorkflowDefinitionRequest;
 use Omnify\Core\Models\Role;
 use Omnify\Core\Models\User;
+use Omnify\Workflow\Http\Requests\StoreWorkflowDefinitionRequest;
+use Omnify\Workflow\Http\Requests\UpdateWorkflowDefinitionRequest;
 use Omnify\Workflow\Models\WorkflowDefinition;
 use Omnify\Workflow\Models\WorkflowDefinitionStep;
+use Omnify\Workflow\Models\WorkflowInstance;
 
 class WorkflowDefinitionAdminController extends Controller
 {
+    public function overview(): Response
+    {
+        $pagesPath = config('workflow.admin.pages_path', 'settings/workflow');
+
+        $stats = [
+            'total_definitions' => WorkflowDefinition::count(),
+            'active_definitions' => WorkflowDefinition::where('is_active', true)->count(),
+            'total_instances' => WorkflowInstance::count(),
+            'pending_instances' => WorkflowInstance::where('status', 'pending')->count(),
+        ];
+
+        $recentInstances = WorkflowInstance::query()
+            ->with('definition:id,name,slug')
+            ->orderByDesc('submitted_at')
+            ->limit(5)
+            ->get()
+            ->map(fn ($instance) => [
+                'id' => $instance->id,
+                'status' => $instance->status,
+                'submitted_at' => $instance->submitted_at?->toISOString(),
+                'definition_name' => $instance->definition?->name,
+            ]);
+
+        return Inertia::render("{$pagesPath}/overview", [
+            'stats' => $stats,
+            'recent_instances' => $recentInstances,
+        ]);
+    }
+
     public function index(Request $request): Response
     {
-        $pagesPath = config('workflow.admin.pages_path', 'admin/workflow');
+        $pagesPath = config('workflow.admin.pages_path', 'settings/workflow');
 
         $sortField = $request->input('sort', 'name');
         $sortDirection = 'asc';

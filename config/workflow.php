@@ -111,9 +111,9 @@ return [
     */
     'admin' => [
         'enabled' => env('WORKFLOW_ADMIN_ENABLED', true),
-        'prefix' => env('WORKFLOW_ADMIN_PREFIX', 'admin/workflow'),
+        'prefix' => env('WORKFLOW_ADMIN_PREFIX', 'settings/workflow'),
         'middleware' => ['web', 'auth'],
-        'pages_path' => 'admin/workflow',
+        'pages_path' => 'settings/workflow',
     ],
 
     /*

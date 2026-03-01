@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { App, Button, Card, Drawer, Dropdown, Flex, Form, Input, Radio, Select, Switch, Table, Tag, Typography } from 'antd';
+import { App, Button, Card, Drawer, Dropdown, Flex, Form, Input, Radio, Select, Switch, Table, Tag, theme, Typography } from 'antd';
 import type { TableColumnsType, TableProps } from 'antd';
 import { isAxiosError } from 'axios';
 import { Ellipsis, Minus, Plus, PlusCircle } from 'lucide-react';
@@ -252,7 +252,7 @@ function DefinitionFormDrawer({ open, onClose, definition, roles, users }: FormD
             open={open}
             onClose={onClose}
             footer={
-                <Flex justify="end" gap={8}>
+                <Flex justify="end" gap="small">
                     <Button onClick={onClose}>
                         {t('common.cancel', 'Cancel')}
                     </Button>
@@ -333,7 +333,7 @@ function DefinitionFormDrawer({ open, onClose, definition, roles, users }: FormD
                     ]}
                 >
                     {(fields, { add, remove }, { errors }) => (
-                        <Flex vertical gap={12}>
+                        <Flex vertical gap="middle">
                             {fields.map(({ key, name, ...restField }) => (
                                 <Card
                                     key={key}
@@ -372,7 +372,7 @@ function DefinitionFormDrawer({ open, onClose, definition, roles, users }: FormD
                                     </Form.Item>
 
                                     <Form.Item label={t('workflow.definitions.approver', 'Approver')} style={{ marginBottom: 0 }}>
-                                        <Flex vertical gap={8}>
+                                        <Flex vertical gap="small">
                                             <ApproverFields
                                                 restField={restField}
                                                 name={name}
@@ -384,7 +384,7 @@ function DefinitionFormDrawer({ open, onClose, definition, roles, users }: FormD
                                         </Flex>
                                     </Form.Item>
 
-                                    <Flex gap={12}>
+                                    <Flex gap="middle">
                                         <Form.Item
                                             {...restField}
                                             name={[name, 'deadline_hours']}
@@ -439,6 +439,7 @@ function DefinitionFormDrawer({ open, onClose, definition, roles, users }: FormD
 
 export default function WorkflowDefinitionsIndex({ definitions, filters, roles, users }: Props) {
     const { t } = useTranslation();
+    const { token } = theme.useToken();
     const currentSort = parseSortParam(filters.sort);
 
     const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
@@ -450,8 +451,7 @@ export default function WorkflowDefinitionsIndex({ definitions, filters, roles, 
     const { message, modal } = App.useApp();
 
     const breadcrumbs = [
-        { title: t('nav.dashboard', 'Dashboard'), href: '/dashboard' },
-        { title: t('workflow.definitions.title', 'Workflow Definitions'), href: '/admin/workflow/definitions' },
+        { title: t('workflow.definitions.title', 'Workflow Definitions'), href: '/settings/workflow/definitions' },
     ];
 
     const deleteMutation = useMutation({
@@ -490,7 +490,7 @@ export default function WorkflowDefinitionsIndex({ definitions, filters, roles, 
         const params = buildFilterParams(filters, { set: { sort: sortParam } });
         if (pagination.current && pagination.current > 1) params.page = pagination.current;
 
-        router.get('/admin/workflow/definitions', params, { preserveState: true, preserveScroll: true });
+        router.get('/settings/workflow/definitions', params, { preserveState: true, preserveScroll: true });
     };
 
     const handleOpenFilterDrawer = () => {
@@ -502,7 +502,7 @@ export default function WorkflowDefinitionsIndex({ definitions, filters, roles, 
 
     const handleFilterApply = () => {
         router.get(
-            '/admin/workflow/definitions',
+            '/settings/workflow/definitions',
             buildFilterParams(filters, { setAdvanced: draftFilters }),
             { preserveState: true, preserveScroll: true },
         );
@@ -511,7 +511,7 @@ export default function WorkflowDefinitionsIndex({ definitions, filters, roles, 
 
     const handleFilterReset = () => {
         router.get(
-            '/admin/workflow/definitions',
+            '/settings/workflow/definitions',
             buildFilterParams(filters, { setAdvanced: {} }),
             { preserveState: true, preserveScroll: true },
         );
@@ -547,7 +547,7 @@ export default function WorkflowDefinitionsIndex({ definitions, filters, roles, 
             title: t('workflow.definitions.stepsCount', 'Steps'),
             dataIndex: 'steps_count',
             key: 'steps_count',
-            width: 80,
+            width: 120,
             align: 'center',
         },
         {
@@ -611,47 +611,50 @@ export default function WorkflowDefinitionsIndex({ definitions, filters, roles, 
             subtitle={t('workflow.definitions.subtitle', 'Manage approval workflow templates and their steps.')}
             breadcrumbs={breadcrumbs}
         >
-            <Filters routeUrl="/admin/workflow/definitions" currentFilters={filters}>
-                <FilterSearch
-                    filterKey="q"
-                    placeholder={t('workflow.definitions.searchPlaceholder', 'Search by name or slug...')}
-                    style={{ maxWidth: 320 }}
-                />
-                <FilterAdvancedButton
-                    label={t('common.filters', 'Filters')}
-                    onClick={handleOpenFilterDrawer}
-                />
-                <div style={{ marginLeft: 'auto' }}>
-                    <Button type="primary" icon={<PlusCircle size={16} />} onClick={handleCreate}>
-                        {t('workflow.definitions.create', 'Create Definition')}
-                    </Button>
-                </div>
-            </Filters>
+            <Flex vertical gap="large">
+                <Filters routeUrl="/settings/workflow/definitions" currentFilters={filters}>
+                    <FilterSearch
+                        filterKey="q"
+                        placeholder={t('workflow.definitions.searchPlaceholder', 'Search by name or slug...')}
+                    />
+                    <FilterAdvancedButton
+                        label={t('common.filters', 'Filters')}
+                        onClick={handleOpenFilterDrawer}
+                    />
+                    <div style={{ marginLeft: 'auto' }}>
+                        <Button type="primary" icon={<PlusCircle size={16} />} onClick={handleCreate}>
+                            {t('workflow.definitions.create', 'Create Definition')}
+                        </Button>
+                    </div>
+                </Filters>
 
-            <FilterChips
-                labels={chipLabels}
-                valueLabels={chipValueLabels}
-                currentFilters={filters}
-                onRemove={(key) => {
-                    router.get(
-                        '/admin/workflow/definitions',
-                        buildFilterParams(filters, { removeAdvancedKey: key }),
-                        { preserveState: true, preserveScroll: true },
-                    );
-                }}
-            />
+                <FilterChips
+                    labels={chipLabels}
+                    valueLabels={chipValueLabels}
+                    currentFilters={filters}
+                    onRemove={(key) => {
+                        router.get(
+                            '/settings/workflow/definitions',
+                            buildFilterParams(filters, { removeAdvancedKey: key }),
+                            { preserveState: true, preserveScroll: true },
+                        );
+                    }}
+                />
 
-            <Table
-                dataSource={definitions.data}
-                columns={columns}
-                rowKey="id"
-                onChange={handleTableChange}
-                pagination={{
-                    current: definitions.meta.current_page,
-                    total: definitions.meta.total,
-                    pageSize: definitions.meta.per_page,
-                }}
-            />
+                <Card styles={{ body: { padding: 0 } }}>
+                    <Table
+                        dataSource={definitions.data}
+                        columns={columns}
+                        rowKey="id"
+                        onChange={handleTableChange}
+                        pagination={{
+                            current: definitions.meta.current_page,
+                            total: definitions.meta.total,
+                            pageSize: definitions.meta.per_page,
+                        }}
+                    />
+                </Card>
+            </Flex>
 
             <FilterDrawer
                 open={filterDrawerOpen}
@@ -660,7 +663,7 @@ export default function WorkflowDefinitionsIndex({ definitions, filters, roles, 
                 onApply={handleFilterApply}
                 onReset={handleFilterReset}
             >
-                <Flex vertical gap={4}>
+                <Flex vertical gap={token.paddingXXS}>
                     <Typography.Text>{t('workflow.definitions.columns.status', 'Status')}</Typography.Text>
                     <Select
                         value={draftFilters.is_active ?? '__all__'}

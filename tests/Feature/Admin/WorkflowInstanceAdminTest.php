@@ -21,10 +21,10 @@ it('returns instances index page', function () {
     ]);
 
     $this->actingAs($user)
-        ->get('/admin/workflow/instances')
+        ->get('/settings/workflow/instances')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('admin/workflow/instances/index')
+            ->component('settings/workflow/instances/index')
             ->has('instances.data', 3)
             ->has('instances.meta')
             ->has('definitions')
@@ -45,7 +45,7 @@ it('supports status filter on instances index', function () {
     ]);
 
     $this->actingAs($user)
-        ->get('/admin/workflow/instances?filter[status]=pending')
+        ->get('/settings/workflow/instances?filter[status]=pending')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('instances.data', 2)
@@ -65,7 +65,7 @@ it('supports definition_id filter on instances index', function () {
     ]);
 
     $this->actingAs($user)
-        ->get("/admin/workflow/instances?filter[definition_id]={$defA->id}")
+        ->get("/settings/workflow/instances?filter[definition_id]={$defA->id}")
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('instances.data', 2)
@@ -86,7 +86,7 @@ it('supports search by workflowable_type on instances index', function () {
     ]);
 
     $this->actingAs($user)
-        ->get('/admin/workflow/instances?q=LeaveRequest')
+        ->get('/settings/workflow/instances?q=LeaveRequest')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('instances.data', 1)
@@ -107,7 +107,7 @@ it('supports date range filter on instances index', function () {
     ]);
 
     $this->actingAs($user)
-        ->get('/admin/workflow/instances?filter[submitted_at_from]=2025-01-01&filter[submitted_at_to]=2025-02-01')
+        ->get('/settings/workflow/instances?filter[submitted_at_from]=2025-01-01&filter[submitted_at_to]=2025-02-01')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('instances.data', 1)
@@ -131,7 +131,7 @@ it('supports sorting on instances index', function () {
 
     // Default sort: -submitted_at (desc)
     $this->actingAs($user)
-        ->get('/admin/workflow/instances')
+        ->get('/settings/workflow/instances')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('instances.data.0.submitted_at', fn ($value) => str_contains($value, '2025-01-20'))
@@ -143,7 +143,7 @@ it('returns definitions list for filter dropdown', function () {
     WorkflowDefinition::factory()->count(2)->create();
 
     $this->actingAs($user)
-        ->get('/admin/workflow/instances')
+        ->get('/settings/workflow/instances')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('definitions', 2)
@@ -179,10 +179,10 @@ it('returns instance show page with relations', function () {
     ]);
 
     $this->actingAs($user)
-        ->get("/admin/workflow/instances/{$instance->id}")
+        ->get("/settings/workflow/instances/{$instance->id}")
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('admin/workflow/instances/show')
+            ->component('settings/workflow/instances/show')
             ->has('instance')
             ->has('instance.definition')
             ->has('instance.step_approvals')
@@ -194,6 +194,6 @@ it('returns 404 for non-existent instance', function () {
     $user = createUser('admin');
 
     $this->actingAs($user)
-        ->get('/admin/workflow/instances/non-existent-uuid')
+        ->get('/settings/workflow/instances/non-existent-uuid')
         ->assertNotFound();
 });

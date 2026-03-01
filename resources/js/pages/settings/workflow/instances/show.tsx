@@ -13,6 +13,7 @@ import {
     Tag,
     Timeline,
     Typography,
+    theme,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import dayjs from 'dayjs';
@@ -104,6 +105,7 @@ function actionLabel(action: string): string {
 
 export default function WorkflowInstanceShow({ instance }: Props) {
     const { t } = useTranslation();
+    const { token } = theme.useToken();
     const { message } = App.useApp();
 
     const [approveModalOpen, setApproveModalOpen] = useState(false);
@@ -115,9 +117,8 @@ export default function WorkflowInstanceShow({ instance }: Props) {
     const isPending = instance.status === 'pending';
 
     const breadcrumbs = [
-        { title: t('nav.dashboard', 'Dashboard'), href: '/dashboard' },
-        { title: t('workflow.instances.title', 'Workflow Instances'), href: '/admin/workflow/instances' },
-        { title: shortId(instance.id), href: `/admin/workflow/instances/${instance.id}` },
+        { title: t('workflow.instances.title', 'Workflow Instances'), href: '/settings/workflow/instances' },
+        { title: shortId(instance.id), href: `/settings/workflow/instances/${instance.id}` },
     ];
 
     /* ── Mutations ──────────────────────────────── */
@@ -229,8 +230,8 @@ export default function WorkflowInstanceShow({ instance }: Props) {
     const historyItems = (instance.history ?? []).map((h: WorkflowHistory) => ({
         color: historyColor(h.action),
         children: (
-            <Flex vertical gap={2}>
-                <Flex gap={8} align="center">
+            <Flex vertical gap={token.paddingXXS / 2}>
+                <Flex gap="small" align="center">
                     <Typography.Text strong>{actionLabel(h.action)}</Typography.Text>
                     {h.step_order && (
                         <Tag>{t('workflow.history.step', 'Step')} {h.step_order}</Tag>
@@ -239,7 +240,7 @@ export default function WorkflowInstanceShow({ instance }: Props) {
                 {h.comment && (
                     <Typography.Text type="secondary">{h.comment}</Typography.Text>
                 )}
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                     {formatDate(h.created_at)}
                     {h.actor_id && ` · ${shortId(h.actor_id)}`}
                 </Typography.Text>
@@ -254,91 +255,93 @@ export default function WorkflowInstanceShow({ instance }: Props) {
             extra={
                 <Button
                     icon={<ArrowLeft size={16} />}
-                    onClick={() => router.visit('/admin/workflow/instances')}
+                    onClick={() => router.visit('/settings/workflow/instances')}
                 >
                     {t('common.back', 'Back')}
                 </Button>
             }
         >
-            {/* ── Instance Info ───────────────────── */}
-            <Card>
-                <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
-                    <Descriptions.Item label={t('workflow.instances.status', 'Status')}>
-                        <Tag color={workflowStatusColor[instance.status]}>
-                            {statusLabel(instance.status)}
-                        </Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label={t('workflow.instances.definition', 'Definition')}>
-                        {instance.definition?.name ?? '—'}
-                    </Descriptions.Item>
-                    <Descriptions.Item label={t('workflow.instances.type', 'Type')}>
-                        {instance.workflowable_type}
-                    </Descriptions.Item>
-                    <Descriptions.Item label={t('workflow.instances.submittedBy', 'Submitted By')}>
-                        {shortId(instance.submitted_by)}
-                    </Descriptions.Item>
-                    <Descriptions.Item label={t('workflow.instances.submittedAt', 'Submitted')}>
-                        {formatDate(instance.submitted_at)}
-                    </Descriptions.Item>
-                    <Descriptions.Item label={t('workflow.instances.completedAt', 'Completed')}>
-                        {formatDate(instance.completed_at)}
-                    </Descriptions.Item>
-                    <Descriptions.Item label={t('workflow.instances.currentStep', 'Current Step')}>
-                        {instance.current_step}
-                    </Descriptions.Item>
-                </Descriptions>
-            </Card>
-
-            {/* ── Actions ─────────────────────────── */}
-            {isPending && (
-                <Flex gap={8}>
-                    <Button
-                        type="primary"
-                        icon={<Check size={16} />}
-                        onClick={() => setApproveModalOpen(true)}
-                    >
-                        {t('workflow.instances.approve', 'Approve')}
-                    </Button>
-                    <Button
-                        danger
-                        icon={<X size={16} />}
-                        onClick={() => setRejectModalOpen(true)}
-                    >
-                        {t('workflow.instances.reject', 'Reject')}
-                    </Button>
-                    <Button
-                        icon={<Ban size={16} />}
-                        onClick={() => setCancelModalOpen(true)}
-                    >
-                        {t('workflow.instances.cancel', 'Cancel')}
-                    </Button>
-                </Flex>
-            )}
-
-            {/* ── Steps Progress ──────────────────── */}
-            {stepsItems.length > 0 && (
-                <Card title={t('workflow.instances.stepsProgress', 'Steps Progress')}>
-                    <Steps items={stepsItems} />
+            <Flex vertical gap="large">
+                {/* ── Instance Info ───────────────────── */}
+                <Card>
+                    <Descriptions column={{ xs: 1, sm: 2, lg: 3 }}>
+                        <Descriptions.Item label={t('workflow.instances.status', 'Status')}>
+                            <Tag color={workflowStatusColor[instance.status]}>
+                                {statusLabel(instance.status)}
+                            </Tag>
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('workflow.instances.definition', 'Definition')}>
+                            {instance.definition?.name ?? '—'}
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('workflow.instances.type', 'Type')}>
+                            {instance.workflowable_type}
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('workflow.instances.submittedBy', 'Submitted By')}>
+                            {shortId(instance.submitted_by)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('workflow.instances.submittedAt', 'Submitted')}>
+                            {formatDate(instance.submitted_at)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('workflow.instances.completedAt', 'Completed')}>
+                            {formatDate(instance.completed_at)}
+                        </Descriptions.Item>
+                        <Descriptions.Item label={t('workflow.instances.currentStep', 'Current Step')}>
+                            {instance.current_step}
+                        </Descriptions.Item>
+                    </Descriptions>
                 </Card>
-            )}
 
-            {/* ── Approvals Table ─────────────────── */}
-            <Card title={t('workflow.approvals.title', 'Approvals')}>
-                <Table
-                    dataSource={instance.step_approvals ?? []}
-                    columns={approvalColumns}
-                    rowKey="id"
-                    pagination={false}
-                    size="small"
-                />
-            </Card>
+                {/* ── Actions ─────────────────────────── */}
+                {isPending && (
+                    <Flex gap="small">
+                        <Button
+                            type="primary"
+                            icon={<Check size={16} />}
+                            onClick={() => setApproveModalOpen(true)}
+                        >
+                            {t('workflow.instances.approve', 'Approve')}
+                        </Button>
+                        <Button
+                            danger
+                            icon={<X size={16} />}
+                            onClick={() => setRejectModalOpen(true)}
+                        >
+                            {t('workflow.instances.reject', 'Reject')}
+                        </Button>
+                        <Button
+                            icon={<Ban size={16} />}
+                            onClick={() => setCancelModalOpen(true)}
+                        >
+                            {t('workflow.instances.cancel', 'Cancel')}
+                        </Button>
+                    </Flex>
+                )}
 
-            {/* ── History Timeline ────────────────── */}
-            {historyItems.length > 0 && (
-                <Card title={t('workflow.history.title', 'History')}>
-                    <Timeline items={historyItems} />
+                {/* ── Steps Progress ──────────────────── */}
+                {stepsItems.length > 0 && (
+                    <Card title={t('workflow.instances.stepsProgress', 'Steps Progress')}>
+                        <Steps items={stepsItems} />
+                    </Card>
+                )}
+
+                {/* ── Approvals Table ─────────────────── */}
+                <Card title={t('workflow.approvals.title', 'Approvals')}>
+                    <Table
+                        dataSource={instance.step_approvals ?? []}
+                        columns={approvalColumns}
+                        rowKey="id"
+                        pagination={false}
+                        size="small"
+                    />
                 </Card>
-            )}
+
+                {/* ── History Timeline ────────────────── */}
+                {historyItems.length > 0 && (
+                    <Card title={t('workflow.history.title', 'History')}>
+                        <Timeline items={historyItems} />
+                    </Card>
+                )}
+            </Flex>
 
             {/* ── Approve Modal ───────────────────── */}
             <Modal

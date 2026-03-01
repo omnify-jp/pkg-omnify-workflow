@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { Button, DatePicker, Flex, Select, Table, Tag, Typography } from 'antd';
+import { Button, Card, DatePicker, Flex, Select, Table, Tag, theme, Typography } from 'antd';
 import type { TableColumnsType, TableProps } from 'antd';
 import dayjs from 'dayjs';
 import { Eye } from 'lucide-react';
@@ -65,14 +65,14 @@ function shortId(id: string): string {
 
 export default function WorkflowInstancesIndex({ instances, definitions, filters }: Props) {
     const { t } = useTranslation();
+    const { token } = theme.useToken();
     const currentSort = parseSortParam(filters.sort);
 
     const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
     const [draftFilters, setDraftFilters] = useState<Record<string, string | undefined>>({});
 
     const breadcrumbs = [
-        { title: t('nav.dashboard', 'Dashboard'), href: '/dashboard' },
-        { title: t('workflow.instances.title', 'Workflow Instances'), href: '/admin/workflow/instances' },
+        { title: t('workflow.instances.title', 'Workflow Instances'), href: '/settings/workflow/instances' },
     ];
 
     const handleTableChange: TableProps<WorkflowInstance>['onChange'] = (pagination, _filters, sorter) => {
@@ -88,7 +88,7 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
         const params = buildFilterParams(filters, { set: { sort: sortParam } });
         if (pagination.current && pagination.current > 1) params.page = pagination.current;
 
-        router.get('/admin/workflow/instances', params, { preserveState: true, preserveScroll: true });
+        router.get('/settings/workflow/instances', params, { preserveState: true, preserveScroll: true });
     };
 
     const handleOpenFilterDrawer = () => {
@@ -103,7 +103,7 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
 
     const handleFilterApply = () => {
         router.get(
-            '/admin/workflow/instances',
+            '/settings/workflow/instances',
             buildFilterParams(filters, { setAdvanced: draftFilters }),
             { preserveState: true, preserveScroll: true },
         );
@@ -112,7 +112,7 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
 
     const handleFilterReset = () => {
         router.get(
-            '/admin/workflow/instances',
+            '/settings/workflow/instances',
             buildFilterParams(filters, { setAdvanced: {} }),
             { preserveState: true, preserveScroll: true },
         );
@@ -174,7 +174,7 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
                     type="text"
                     size="small"
                     icon={<Eye size={16} />}
-                    onClick={() => router.visit(`/admin/workflow/instances/${record.id}`)}
+                    onClick={() => router.visit(`/settings/workflow/instances/${record.id}`)}
                 />
             ),
         },
@@ -203,42 +203,45 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
             subtitle={t('workflow.instances.subtitle', 'Monitor and manage running workflow instances.')}
             breadcrumbs={breadcrumbs}
         >
-            <Filters routeUrl="/admin/workflow/instances" currentFilters={filters}>
-                <FilterSearch
-                    filterKey="q"
-                    placeholder={t('workflow.instances.searchPlaceholder', 'Search by type...')}
-                    style={{ maxWidth: 320 }}
-                />
-                <FilterAdvancedButton
-                    label={t('common.filters', 'Filters')}
-                    onClick={handleOpenFilterDrawer}
-                />
-            </Filters>
+            <Flex vertical gap="large">
+                <Filters routeUrl="/settings/workflow/instances" currentFilters={filters}>
+                    <FilterSearch
+                        filterKey="q"
+                        placeholder={t('workflow.instances.searchPlaceholder', 'Search by type...')}
+                    />
+                    <FilterAdvancedButton
+                        label={t('common.filters', 'Filters')}
+                        onClick={handleOpenFilterDrawer}
+                    />
+                </Filters>
 
-            <FilterChips
-                labels={chipLabels}
-                valueLabels={chipValueLabels}
-                currentFilters={filters}
-                onRemove={(key) => {
-                    router.get(
-                        '/admin/workflow/instances',
-                        buildFilterParams(filters, { removeAdvancedKey: key }),
-                        { preserveState: true, preserveScroll: true },
-                    );
-                }}
-            />
+                <FilterChips
+                    labels={chipLabels}
+                    valueLabels={chipValueLabels}
+                    currentFilters={filters}
+                    onRemove={(key) => {
+                        router.get(
+                            '/settings/workflow/instances',
+                            buildFilterParams(filters, { removeAdvancedKey: key }),
+                            { preserveState: true, preserveScroll: true },
+                        );
+                    }}
+                />
 
-            <Table
-                dataSource={instances.data}
-                columns={columns}
-                rowKey="id"
-                onChange={handleTableChange}
-                pagination={{
-                    current: instances.meta.current_page,
-                    total: instances.meta.total,
-                    pageSize: instances.meta.per_page,
-                }}
-            />
+                <Card styles={{ body: { padding: 0 } }}>
+                    <Table
+                        dataSource={instances.data}
+                        columns={columns}
+                        rowKey="id"
+                        onChange={handleTableChange}
+                        pagination={{
+                            current: instances.meta.current_page,
+                            total: instances.meta.total,
+                            pageSize: instances.meta.per_page,
+                        }}
+                    />
+                </Card>
+            </Flex>
 
             <FilterDrawer
                 open={filterDrawerOpen}
@@ -247,7 +250,7 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
                 onApply={handleFilterApply}
                 onReset={handleFilterReset}
             >
-                <Flex vertical gap={4}>
+                <Flex vertical gap={token.paddingXXS}>
                     <Typography.Text>{t('workflow.instances.status', 'Status')}</Typography.Text>
                     <Select
                         value={draftFilters.status ?? '__all__'}
@@ -259,7 +262,7 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
                         style={{ width: '100%' }}
                     />
                 </Flex>
-                <Flex vertical gap={4}>
+                <Flex vertical gap={token.paddingXXS}>
                     <Typography.Text>{t('workflow.instances.definition', 'Definition')}</Typography.Text>
                     <Select
                         value={draftFilters.definition_id ?? '__all__'}
@@ -271,7 +274,7 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
                         style={{ width: '100%' }}
                     />
                 </Flex>
-                <Flex vertical gap={4}>
+                <Flex vertical gap={token.paddingXXS}>
                     <Typography.Text>{t('common.submittedFrom', 'Submitted From')}</Typography.Text>
                     <DatePicker
                         value={draftFilters.submitted_at_from ? dayjs(draftFilters.submitted_at_from) : null}
@@ -279,7 +282,7 @@ export default function WorkflowInstancesIndex({ instances, definitions, filters
                         style={{ width: '100%' }}
                     />
                 </Flex>
-                <Flex vertical gap={4}>
+                <Flex vertical gap={token.paddingXXS}>
                     <Typography.Text>{t('common.submittedTo', 'Submitted To')}</Typography.Text>
                     <DatePicker
                         value={draftFilters.submitted_at_to ? dayjs(draftFilters.submitted_at_to) : null}

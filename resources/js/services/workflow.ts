@@ -1,7 +1,7 @@
 import { api } from '@omnify-core/services/api';
 import type { DefinitionFormData } from '@omnify-workflow/types/workflow';
 
-const ADMIN_PREFIX = '/admin/workflow';
+const ADMIN_PREFIX = '/settings/workflow';
 const API_PREFIX = '/api/workflow';
 
 export const workflowService = {

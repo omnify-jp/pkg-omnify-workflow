@@ -15,7 +15,7 @@ class WorkflowInstanceAdminController extends Controller
 {
     public function index(Request $request): Response
     {
-        $pagesPath = config('workflow.admin.pages_path', 'admin/workflow');
+        $pagesPath = config('workflow.admin.pages_path', 'settings/workflow');
 
         $sortField = $request->input('sort', '-submitted_at');
         $sortDirection = 'asc';
@@ -87,7 +87,7 @@ class WorkflowInstanceAdminController extends Controller
 
     public function show(string $id): Response
     {
-        $pagesPath = config('workflow.admin.pages_path', 'admin/workflow');
+        $pagesPath = config('workflow.admin.pages_path', 'settings/workflow');
 
         $instance = WorkflowInstance::with([
             'definition.steps',

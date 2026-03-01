@@ -35,10 +35,10 @@ it('returns definitions index page', function () {
     WorkflowDefinition::factory()->count(3)->create();
 
     $this->actingAs($user)
-        ->get('/admin/workflow/definitions')
+        ->get('/settings/workflow/definitions')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('admin/workflow/definitions/index')
+            ->component('settings/workflow/definitions/index')
             ->has('definitions.data', 3)
             ->has('definitions.meta')
             ->has('filters')
@@ -51,7 +51,7 @@ it('supports search filter on definitions index', function () {
     WorkflowDefinition::factory()->create(['name' => 'Purchase Order', 'slug' => 'purchase-order']);
 
     $this->actingAs($user)
-        ->get('/admin/workflow/definitions?q=leave')
+        ->get('/settings/workflow/definitions?q=leave')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('definitions.data', 1)
@@ -66,7 +66,7 @@ it('supports is_active filter on definitions index', function () {
     WorkflowDefinition::factory()->create(['is_active' => false]);
 
     $this->actingAs($user)
-        ->get('/admin/workflow/definitions?filter[is_active]=1')
+        ->get('/settings/workflow/definitions?filter[is_active]=1')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('definitions.data', 2)
@@ -79,7 +79,7 @@ it('supports sorting on definitions index', function () {
     WorkflowDefinition::factory()->create(['name' => 'Alpha Flow']);
 
     $this->actingAs($user)
-        ->get('/admin/workflow/definitions?sort=name')
+        ->get('/settings/workflow/definitions?sort=name')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('definitions.data.0.name', 'Alpha Flow')
@@ -93,7 +93,7 @@ it('supports descending sort on definitions index', function () {
     WorkflowDefinition::factory()->create(['name' => 'Beta Flow']);
 
     $this->actingAs($user)
-        ->get('/admin/workflow/definitions?sort=-name')
+        ->get('/settings/workflow/definitions?sort=-name')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('definitions.data.0.name', 'Beta Flow')
@@ -105,7 +105,7 @@ it('passes filters back in response', function () {
     $user = createUser('admin');
 
     $this->actingAs($user)
-        ->get('/admin/workflow/definitions?q=test&sort=-name')
+        ->get('/settings/workflow/definitions?q=test&sort=-name')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('filters.q', 'test')
@@ -124,7 +124,7 @@ it('includes steps_count in definitions', function () {
     }
 
     $this->actingAs($user)
-        ->get('/admin/workflow/definitions')
+        ->get('/settings/workflow/definitions')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('definitions.data.0.steps_count', 3)
@@ -139,7 +139,7 @@ it('creates a definition via admin store', function () {
     $user = createUser('admin');
 
     $response = $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', validAdminDefinitionData());
+        ->postJson('/settings/workflow/definitions', validAdminDefinitionData());
 
     $response->assertStatus(201)
         ->assertJsonStructure(['message', 'id']);
@@ -164,7 +164,7 @@ it('creates a definition with multiple steps', function () {
     ]);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', $data)
+        ->postJson('/settings/workflow/definitions', $data)
         ->assertStatus(201);
 
     $steps = WorkflowDefinition::where('slug', 'leave-approval')->first()->steps;
@@ -179,7 +179,7 @@ it('validates required fields on admin store', function () {
     $user = createUser('admin');
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', [])
+        ->postJson('/settings/workflow/definitions', [])
         ->assertStatus(422)
         ->assertJsonValidationErrors(['name', 'slug', 'is_active', 'steps']);
 });
@@ -190,7 +190,7 @@ it('validates slug format on admin store', function () {
     $data = validAdminDefinitionData(['slug' => 'Invalid Slug!']);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', $data)
+        ->postJson('/settings/workflow/definitions', $data)
         ->assertStatus(422)
         ->assertJsonValidationErrors('slug');
 });
@@ -203,7 +203,7 @@ it('validates slug uniqueness on admin store', function () {
     ]);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', validAdminDefinitionData())
+        ->postJson('/settings/workflow/definitions', validAdminDefinitionData())
         ->assertStatus(422)
         ->assertJsonValidationErrors('slug');
 });
@@ -214,7 +214,7 @@ it('validates at least one step on admin store', function () {
     $data = validAdminDefinitionData(['steps' => []]);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', $data)
+        ->postJson('/settings/workflow/definitions', $data)
         ->assertStatus(422)
         ->assertJsonValidationErrors('steps');
 });
@@ -229,7 +229,7 @@ it('validates step type values on admin store', function () {
     ]);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', $data)
+        ->postJson('/settings/workflow/definitions', $data)
         ->assertStatus(422)
         ->assertJsonValidationErrors('steps.0.type');
 });
@@ -261,7 +261,7 @@ it('updates a definition and replaces steps via admin', function () {
     ];
 
     $this->actingAs($user)
-        ->putJson("/admin/workflow/definitions/{$definition->id}", $data)
+        ->putJson("/settings/workflow/definitions/{$definition->id}", $data)
         ->assertOk()
         ->assertJson(['message' => 'Workflow definition updated.']);
 
@@ -292,7 +292,7 @@ it('deletes a definition without pending instances via admin', function () {
     ]);
 
     $this->actingAs($user)
-        ->deleteJson("/admin/workflow/definitions/{$definition->id}")
+        ->deleteJson("/settings/workflow/definitions/{$definition->id}")
         ->assertOk()
         ->assertJson(['message' => 'Workflow definition deleted.']);
 
@@ -309,7 +309,7 @@ it('blocks deletion when pending instances exist via admin', function () {
     ]);
 
     $this->actingAs($user)
-        ->deleteJson("/admin/workflow/definitions/{$definition->id}")
+        ->deleteJson("/settings/workflow/definitions/{$definition->id}")
         ->assertStatus(422)
         ->assertJson(['message' => 'Cannot delete: this definition has active workflow instances.']);
 
@@ -326,7 +326,7 @@ it('allows deletion when only completed instances exist via admin', function () 
     ]);
 
     $this->actingAs($user)
-        ->deleteJson("/admin/workflow/definitions/{$definition->id}")
+        ->deleteJson("/settings/workflow/definitions/{$definition->id}")
         ->assertOk();
 
     expect(WorkflowDefinition::find($definition->id))->toBeNull();
@@ -340,7 +340,7 @@ it('index page includes users in Inertia props', function () {
     $user = createUser('admin');
 
     $this->actingAs($user)
-        ->get('/admin/workflow/definitions')
+        ->get('/settings/workflow/definitions')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->has('users')
@@ -368,7 +368,7 @@ it('creates a definition with approver_user_ids on steps', function () {
     ]);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', $data)
+        ->postJson('/settings/workflow/definitions', $data)
         ->assertStatus(201);
 
     $definition = WorkflowDefinition::where('slug', 'user-based-flow')->first();
@@ -408,7 +408,7 @@ it('creates a definition with mixed role and user steps', function () {
     ]);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', $data)
+        ->postJson('/settings/workflow/definitions', $data)
         ->assertStatus(201);
 
     $steps = WorkflowDefinition::where('slug', 'mixed-flow')->first()->steps;
@@ -450,7 +450,7 @@ it('updates a definition and preserves approver_user_ids', function () {
     ];
 
     $this->actingAs($user)
-        ->putJson("/admin/workflow/definitions/{$definition->id}", $data)
+        ->putJson("/settings/workflow/definitions/{$definition->id}", $data)
         ->assertOk();
 
     $step = $definition->fresh()->steps->first();
@@ -476,7 +476,7 @@ it('stores empty approver_user_ids as null', function () {
     ]);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', $data)
+        ->postJson('/settings/workflow/definitions', $data)
         ->assertStatus(201);
 
     $step = WorkflowDefinition::where('slug', 'null-ids-flow')->first()->steps->first();
@@ -501,7 +501,7 @@ it('validates approver_user_ids must contain valid UUIDs', function () {
     ]);
 
     $this->actingAs($user)
-        ->postJson('/admin/workflow/definitions', $data)
+        ->postJson('/settings/workflow/definitions', $data)
         ->assertStatus(422)
         ->assertJsonValidationErrors(['steps.0.approver_user_ids.0', 'steps.0.approver_user_ids.1']);
 });
