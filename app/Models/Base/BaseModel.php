@@ -15,4 +15,19 @@ use Illuminate\Database\Eloquent\Model;
 
 abstract class BaseModel extends Model
 {
+    /**
+     * Resolve the collection class name from the CollectedBy attribute.
+     *
+     * Override to prevent Laravel 13 from trying to instantiate
+     * this abstract class when walking up the class hierarchy.
+     */
+    public function resolveCollectionFromAttribute()
+    {
+        $reflectionClass = new \ReflectionClass(static::class);
+        $attributes = $reflectionClass->getAttributes(\Illuminate\Database\Eloquent\Attributes\CollectedBy::class);
+
+        return isset($attributes[0]) && isset($attributes[0]->getArguments()[0])
+            ? $attributes[0]->getArguments()[0]
+            : null;
+    }
 }
